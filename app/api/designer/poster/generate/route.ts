@@ -9,6 +9,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { dateString, items, showPhysiotherapy, datePositionX, datePositionY } = body;
 
+    console.log("POSTER GENERATE API RECEIVED:", {
+      dateString,
+      showPhysiotherapy,
+      datePositionX,
+      datePositionY,
+      itemsCount: items?.length
+    });
+
     if (!dateString || !items || !Array.isArray(items)) {
       return NextResponse.json(
         { error: "Invalid request payload. Must provide dateString and items array." },
@@ -64,8 +72,14 @@ export async function POST(request: Request) {
     }
     const footerBase64 = fs.readFileSync(footerPath).toString("base64");
 
+    // Parse and sanitize positioning coordinates
+    const parsedX = typeof datePositionX === "number" ? datePositionX : parseInt(datePositionX, 10);
+    const parsedY = typeof datePositionY === "number" ? datePositionY : parseInt(datePositionY, 10);
+    const finalX = isNaN(parsedX) ? 80 : parsedX;
+    const finalY = isNaN(parsedY) ? 80 : parsedY;
+
     // Generate HTML
-    const htmlContent = generatePosterHtml(dateString, items, headerBase64, footerBase64, fonts, showPhysiotherapy, datePositionX, datePositionY);
+    const htmlContent = generatePosterHtml(dateString, items, headerBase64, footerBase64, fonts, showPhysiotherapy, finalX, finalY);
 
     // Launch Puppeteer
     const browser = await puppeteer.launch({

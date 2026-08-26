@@ -104,7 +104,7 @@ export function generatePosterHtml(
         return `
           <div class="fixed-service-row">
             <div class="fixed-service-card-left">
-              <span>${deptName}</span>
+              <span style="transform: translateY(-14px); display: inline-block; width: 100%;">${deptName}</span>
             </div>
             <div class="fixed-service-card-right">
               <div class="fs-badge">
@@ -122,8 +122,8 @@ export function generatePosterHtml(
         <div class="department-group">
           <!-- Left: Department Badge -->
           <div class="dept-badge-col">
-            <div class="dept-badge" style="font-size: 50px;">
-              <span>${deptName}</span>
+            <div class="dept-badge" style="font-size: 42px;">
+              <span style="transform: translateY(-10px); display: inline-block; width: 100%;">${deptName}</span>
             </div>
           </div>
           
@@ -134,7 +134,7 @@ export function generatePosterHtml(
             const docName = item.doctorNameMalayalamMVM || "[Missing Name]";
             const qual = item.doctorQualificationEnglish || "";
             return `
-                  <div class="doctor-info-row" style="min-height: ${docRowHeight}; padding: 12px 0;">
+                  <div class="doctor-info-row" style="min-height: ${docRowHeight}; padding: 12px 0; transform: translateY(-8px);">
                     <div class="doctor-name" style="font-size: ${docFontSize}px;">${docName}</div>
                     ${qual ? `<div class="doctor-qual" style="font-size: ${qualFontSize}px;">${qual}</div>` : ""}
                   </div>
@@ -236,7 +236,7 @@ export function generatePosterHtml(
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          padding: 240px 70px 45px 70px;
+          padding: 240px 35px 45px 35px;
         }
 
         /* Date overlay absolute positioned over header image card space */
@@ -260,6 +260,7 @@ export function generatePosterHtml(
           font-size: 34px;
           font-weight: bold;
           line-height: 0.85;
+          white-space: nowrap;
         }
 
         .cal-line-2 {
@@ -268,6 +269,7 @@ export function generatePosterHtml(
           font-weight: bold;
           line-height: 0.85;
           margin-top: 0px;
+          white-space: nowrap;
         }
 
         /* DYNAMIC SCHEDULE AREA */
@@ -283,7 +285,7 @@ export function generatePosterHtml(
         /* Department Group Grid */
         .department-group {
           display: grid;
-          grid-template-columns: 312px 1fr 250px;
+          grid-template-columns: 310px 535px 285px;
           column-gap: 0;
           align-items: stretch;
           width: 100%;
@@ -297,24 +299,26 @@ export function generatePosterHtml(
         }
 
         .dept-badge {
-          background-color: #4A6B82;
+          background-color: #577C8E;
           color: white;
           border-top-left-radius: 24px;
           border-bottom-left-radius: 24px;
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
           width: 100%;
-          height: 100%;
+          height: 120px;
           display: flex;
           align-items: center;
           justify-content: flex-start;
-          padding: 15px 30px;
+          padding: 15px 20px;
           text-align: left;
-          line-height: 0.7;
+          line-height: 1.0;
           font-family: 'MVMAthira-Bold', sans-serif;
           font-weight: bold;
           box-shadow: 0 4px 10px rgba(74, 107, 130, 0.15);
-          word-break: break-word;
+          white-space: normal;
+          word-break: keep-all;
+          overflow-wrap: break-word;
           overflow: hidden;
         }
 
@@ -341,14 +345,14 @@ export function generatePosterHtml(
 
         .doctor-name {
           font-family: 'MLKVShaji-Bold', sans-serif;
-          color: #0E273C;
-          line-height: 1.3;
+          color: #305C71;
+          line-height: 1.0;
           font-weight: bold;
         }
 
         .doctor-qual {
           font-family: 'Gilmer-Medium', sans-serif;
-          color: #7E8B9A;
+          color: #95B6C7;
           margin-top: 4px;
           line-height: 0.9;
           word-break: break-word;
@@ -375,7 +379,7 @@ export function generatePosterHtml(
         }
 
         .time-badge {
-          background-color: #4A6B82;
+          background-color: #577C8E;
           color: white;
           width: 100%;
           height: 100%;
@@ -392,8 +396,9 @@ export function generatePosterHtml(
         /* FIXED SERVICE ROW STYLE (Physiotherapy) */
         .fixed-service-row {
           display: grid;
-          grid-template-columns: 1fr 250px;
+          grid-template-columns: 1fr 285px;
           width: 100%;
+          height: 163px;
           background-color: white;
           border: 1px solid #E4E7EB;
           border-radius: 24px;
@@ -417,20 +422,20 @@ export function generatePosterHtml(
         }
 
         .fixed-service-card-right {
-          background-color: #4A6B82;
+          background-color: #577C8E;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 10px 15px;
+          padding: 4px 15px;
         }
 
         .fs-badge {
           background-color: #148C8C;
           color: white;
           border-radius: 8px;
-          padding: 4px 12px;
-          margin-bottom: 6px;
+          padding: 2px 12px;
+          margin-bottom: 12px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -441,13 +446,15 @@ export function generatePosterHtml(
 
         .fs-line-1 {
           font-family: 'MVMAthira-Bold', sans-serif;
-          font-size: 14px;
-          line-height: 1.25;
+          font-size: 32px;
+          line-height: 1.15;
+          transform: translateY(-8px);
+          display: inline-block;
         }
 
         .fs-line-2 {
           font-family: 'Gobold-Uplow', sans-serif;
-          font-size: 24px;
+          font-size: 27px;
           font-weight: bold;
           color: white;
           line-height: 1;

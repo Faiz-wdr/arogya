@@ -131,7 +131,7 @@ function ScheduleContent() {
 
         if (posterRequest) {
           setStatus(posterRequest.status);
-          setShowPhysiotherapy(posterRequest.showPhysiotherapy !== undefined ? posterRequest.showPhysiotherapy : true);
+          setShowPhysiotherapy(posterRequest.showPhysiotherapy !== undefined ? posterRequest.showPhysiotherapy : isWeekday);
           
           let items = posterRequest.scheduleItems || [];
           
@@ -159,7 +159,7 @@ function ScheduleContent() {
         } else {
           // Initialize new schedule
           setStatus("draft");
-          setShowPhysiotherapy(true);
+          setShowPhysiotherapy(isWeekday);
           if (isWeekday) {
             // Include Physiotherapy & Rehabilitation by default on Monday-Saturday
             const fixedItem: ScheduleItem = {
@@ -1058,28 +1058,7 @@ function ScheduleContent() {
                 <div className="flex flex-col gap-4">
                   {groupedDeps.map((group, groupIdx) => {
                     if (group.isFixed) {
-                      const item = group.items[0];
-                      return (
-                        <div key={group.departmentId} className="bg-teal-50/50 border border-teal-100 rounded-2xl p-4 flex justify-between items-center gap-3">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 uppercase tracking-wider">
-                                Fixed Service
-                              </span>
-                            </div>
-                            <h4 className="font-bold text-slate-800 text-sm">
-                              {group.departmentNameMalayalamUnicode}
-                            </h4>
-                            <p className="text-xs text-slate-500 font-medium">Daily Outpatient Service</p>
-                            <div className="text-xs font-semibold text-teal-700 mt-0.5">
-                              {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-center p-2 text-teal-600 bg-teal-100/50 rounded-xl shrink-0">
-                            <Activity className="h-5 w-5" />
-                          </div>
-                        </div>
-                      );
+                      return null;
                     }
 
                     return (

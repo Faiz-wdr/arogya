@@ -95,6 +95,11 @@ function RequestDetailsContent() {
   const [datePositionX, setDatePositionX] = useState<number>(80);
   const [datePositionY, setDatePositionY] = useState<number>(80);
   const [isSavingPosition, setIsSavingPosition] = useState<boolean>(false);
+  const [positionSavedFeedback, setPositionSavedFeedback] = useState<boolean>(false);
+
+  // Auto-Regenerate on Download states
+  const [isPosterOutdated, setIsPosterOutdated] = useState(false);
+  const [isDownloadingPNG, setIsDownloadingPNG] = useState(false);
 
   // Workflow Confirmation Modals
   const [showReopenConfirm, setShowReopenConfirm] = useState(false);
@@ -130,7 +135,15 @@ function RequestDetailsContent() {
         setCreatedByName(request.createdByName || "Hospital Staff");
         setGeneratedPoster(request.generatedPoster);
         setPosterVersions(request.posterVersions || []);
-        setShowPhysiotherapy(request.showPhysiotherapy !== undefined ? request.showPhysiotherapy : true);
+        const dateObj = new Date(dateString);
+        const isWeekday = dateObj.getDay() !== 0; // 0 is Sunday
+        setShowPhysiotherapy(request.showPhysiotherapy !== undefined ? request.showPhysiotherapy : isWeekday);
+
+        // Check if generated poster is outdated relative to database schedule edits
+        const genTime = request.generatedPoster?.generatedAt?.toDate?.()?.getTime() || 0;
+        const updTime = request.updatedAt?.toDate?.()?.getTime() || 0;
+        const isOutdated = !request.generatedPoster || (updTime > 0 && genTime < updTime - 2000);
+        setIsPosterOutdated(isOutdated);
       } else {
         setError("Poster Request not found in the database.");
       }
@@ -206,6 +219,7 @@ function RequestDetailsContent() {
     } else {
       setScheduleItems([...scheduleItems, newItem]);
     }
+    setIsPosterOutdated(true);
   };
 
   // Handle Edit Doctor (Designer Override)
@@ -216,6 +230,7 @@ function RequestDetailsContent() {
       )
     );
     setEditingItem(null);
+    setIsPosterOutdated(true);
   };
 
   // Handle Delete Doctor
@@ -223,6 +238,15 @@ function RequestDetailsContent() {
     const updated = scheduleItems.filter((item) => item.id !== id);
     updated.forEach((item, idx) => { item.displayOrder = idx; });
     setScheduleItems(updated);
+    setIsPosterOutdated(true);
+  };
+
+  // Handle Clear All Items
+  const handleClearAllItems = () => {
+    if (window.confirm("Are you sure you want to clear all items in the schedule? This will empty the list.")) {
+      setScheduleItems([]);
+      setIsPosterOutdated(true);
+    }
   };
 
   // Handle Reordering
@@ -241,6 +265,7 @@ function RequestDetailsContent() {
       newItems[targetIndex] = temp;
       newItems.forEach((item, idx) => { item.displayOrder = idx; });
       setScheduleItems(newItems);
+      setIsPosterOutdated(true);
     }
   };
 
@@ -447,9 +472,11 @@ function RequestDetailsContent() {
       // Reload
       await loadData();
       setPreviewZoom(1);
+      return { downloadUrl, imageBlob };
     } catch (err: any) {
       console.error(err);
       setError(`Failed to generate poster: ${err.message || err}`);
+      return null;
     } finally {
       setGenerating(false);
     }
@@ -459,12 +486,72 @@ function RequestDetailsContent() {
     setIsSavingPosition(true);
     try {
       await savePosterSettings({ datePositionX, datePositionY });
-      alert("Poster date position saved successfully!");
+      setPositionSavedFeedback(true);
+      setTimeout(() => setPositionSavedFeedback(false), 2050);
     } catch (err: any) {
       console.error(err);
       alert("Failed to save poster position settings: " + (err.message || err));
     } finally {
       setIsSavingPosition(false);
+    }
+  };
+
+  const handleDownloadPNG = async () => {
+    if (!generatedPoster) return;
+    
+    const filename = `arogya-doctors-${dateString}.png`;
+    
+    if (isPosterOutdated) {
+      setIsDownloadingPNG(true);
+      try {
+        await handleSavePosition();
+        
+        const payloadItems = scheduleItems.map((item, index) => ({
+          doctorId: item.doctorId,
+          departmentId: item.departmentId,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          displayOrder: index,
+          itemType: item.itemType,
+        }));
+        await savePosterRequest(dateString, createdBy || user?.uid || "", status, payloadItems, showPhysiotherapy);
+
+        const result = await handleGeneratePoster();
+        if (result && result.imageBlob) {
+          setIsPosterOutdated(false);
+          const blobUrl = URL.createObjectURL(result.imageBlob);
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+        }
+      } catch (err) {
+        console.error("Auto-regeneration download failed:", err);
+        alert("Failed to auto-regenerate and download poster: " + err);
+      } finally {
+        setIsDownloadingPNG(false);
+      }
+    } else {
+      // Instant download of the pre-existing poster
+      try {
+        const res = await fetch(generatedPoster.downloadUrl);
+        if (!res.ok) throw new Error("Fetch failed");
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+      } catch (e) {
+        console.error("CORS block or fetch error, falling back to new tab:", e);
+        window.open(generatedPoster.downloadUrl, "_blank");
+      }
     }
   };
 
@@ -523,18 +610,6 @@ function RequestDetailsContent() {
             </div>
           )}
 
-          {/* Safe Capacity Warning Banner */}
-          {joinedItems.length > 9 && (
-            <div className="p-4 rounded-2xl bg-red-50 border border-red-100 text-xs font-semibold text-red-800 flex items-start gap-2.5">
-              <AlertCircle className="h-5 w-5 shrink-0 text-red-500 mt-0.5" />
-              <div className="flex flex-col gap-0.5">
-                <span className="font-bold">Safe Poster Capacity Exceeded!</span>
-                <span className="font-normal text-red-700">
-                  The schedule contains {joinedItems.length} items. A maximum of 9 items is recommended to prevent overlapping content on the generated poster. Please consider removing or merging some items.
-                </span>
-              </div>
-            </div>
-          )}
 
           {/* Date Header Title */}
           <div className="flex flex-col gap-1.5 px-1">
@@ -558,17 +633,29 @@ function RequestDetailsContent() {
                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                     Poster Items ({joinedItems.length})
                   </h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingItem(null);
-                      setIsAddModalOpen(true);
-                    }}
-                    className="bg-white border border-slate-100 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-slate-50 transition-colors shadow-xs"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Add Doctor</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {joinedItems.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAllItems}
+                        className="bg-red-50 hover:bg-red-100 border border-red-100 text-red-750 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span>Clear All</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingItem(null);
+                        setIsAddModalOpen(true);
+                      }}
+                      className="bg-white border border-slate-100 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-slate-50 transition-colors shadow-xs"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Add Doctor</span>
+                    </button>
+                  </div>
                 </div>
 
                 {joinedItems.map((item, idx) => {
@@ -989,7 +1076,10 @@ function RequestDetailsContent() {
                     <input
                       type="checkbox"
                       checked={showPhysiotherapy}
-                      onChange={(e) => setShowPhysiotherapy(e.target.checked)}
+                      onChange={(e) => {
+                        setShowPhysiotherapy(e.target.checked);
+                        setIsPosterOutdated(true);
+                      }}
                       className="sr-only peer"
                     />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
@@ -1048,26 +1138,26 @@ function RequestDetailsContent() {
                         <Eye className="h-3.5 w-3.5" />
                         <span>Preview</span>
                       </button>
-                      <a
-                        href={generatedPoster.downloadUrl}
-                        download={`arogya-doctors-${dateString}.png`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 bg-white hover:bg-slate-50 border border-slate-150 text-slate-750 font-bold text-xs py-2 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1 text-center"
+                      <button
+                        type="button"
+                        disabled={isDownloadingPNG || generating}
+                        onClick={handleDownloadPNG}
+                        className="flex-1 bg-white hover:bg-slate-50 border border-slate-150 text-slate-750 font-bold text-xs py-2 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1 disabled:opacity-50"
                       >
-                        <Download className="h-3.5 w-3.5" />
-                        <span>Download</span>
-                      </a>
+                        {isDownloadingPNG ? (
+                          <>
+                            <div className="h-3 w-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                            <span>Downloading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-3.5 w-3.5" />
+                            <span>{isPosterOutdated ? "Download (Update)" : "Download"}</span>
+                          </>
+                        )}
+                      </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleGeneratePoster}
-                      className="w-full bg-teal-55 hover:bg-teal-100/80 text-teal-800 font-bold text-xs py-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5 border border-teal-100"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                      <span>Regenerate Poster</span>
-                    </button>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
@@ -1091,46 +1181,7 @@ function RequestDetailsContent() {
                   </div>
                 )}
 
-                {/* Historical Version Logs */}
-                {posterVersions.length > 0 && (
-                  <div className="border-t border-slate-100 pt-3 mt-1 flex flex-col gap-2">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                      Version History ({posterVersions.length})
-                    </span>
-                    <div className="max-h-32 overflow-y-auto flex flex-col gap-1.5 pr-1">
-                      {posterVersions.map((v, i) => (
-                        <div key={i} className="flex justify-between items-center gap-2 p-1.5 rounded-lg bg-slate-50 border border-slate-100 text-[10px]">
-                          <span className="font-bold text-slate-700">v{v.version}</span>
-                          <span className="text-slate-455 font-medium font-mono">
-                            {v.generatedAt?.toDate ? v.generatedAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now"}
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setGeneratedPoster(v);
-                                setPreviewZoom(1);
-                                setShowPreviewModal(true);
-                              }}
-                              className="text-teal-650 hover:text-teal-800 font-bold cursor-pointer"
-                            >
-                              View
-                            </button>
-                            <a
-                              href={v.downloadUrl}
-                              download={`arogya-doctors-${dateString}-v${v.version}.png`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-slate-500 hover:text-slate-800 font-bold cursor-pointer"
-                            >
-                              Get
-                            </a>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* Version history and regenerate button removed for simplicity */}
               </div>
 
               {/* Card 3: Date Copy Card */}
@@ -1369,60 +1420,278 @@ function RequestDetailsContent() {
       )}
 
       {/* Poster Preview Modal */}
-      {showPreviewModal && generatedPoster && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+      {showPreviewModal && generatedPoster && (() => {
+        // Group items for preview
+        const gpDepts: { [key: string]: any[] } = {};
+        joinedItems.forEach((item) => {
+          const deptName = item.departmentNameMalayalamMVM || "Other";
+          if (showPhysiotherapy === false && (deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³")) return;
+          if (!gpDepts[deptName]) gpDepts[deptName] = [];
+          gpDepts[deptName].push(item);
+        });
+        const deptKeysCount = Object.keys(gpDepts).length;
+
+        // Calculate natural height of the poster dynamically
+        const previewDocRowHeight = deptKeysCount <= 3 ? 110 : deptKeysCount <= 5 ? 95 : 90;
+        const rowGapVal = deptKeysCount <= 3 ? 36 : deptKeysCount <= 5 ? 24 : 20;
+
+        let scheduleHeight = 0;
+        Object.keys(gpDepts).forEach((deptName) => {
+          const isPhysio = deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³";
+          if (isPhysio) {
+            scheduleHeight += 163;
+          } else {
+            const N = gpDepts[deptName].length;
+            scheduleHeight += Math.max(120, 20 + N * (previewDocRowHeight + 24));
+          }
+        });
+
+        if (deptKeysCount > 0) {
+          scheduleHeight += (deptKeysCount - 1) * rowGapVal;
+        }
+
+        const posterHeight = Math.max(1600, 240 + scheduleHeight + 398 + 40);
+        const scaledHeight = posterHeight * 0.375;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
           <div className="w-full max-w-4xl bg-white rounded-3xl border border-slate-100 flex flex-col md:flex-row shadow-2xl relative overflow-hidden my-8 animate-scaleUp animate-duration-200">
             
-            {/* Left: Image display (scrollable if zoomed) */}
+            {/* Left: Dynamic HTML display (scrollable if zoomed) */}
             <div className="flex-1 bg-slate-950 flex items-center justify-center p-6 min-h-[400px] max-h-[85vh] overflow-auto">
+              {/* Style declaration for custom fonts in browser */}
+              <style>{`
+                @font-face {
+                  font-family: 'MLKVShaji-Bold';
+                  src: url('/fonts/mlkv-shaji/MLKVShaji-Bold.ttf') format('truetype');
+                }
+                @font-face {
+                  font-family: 'MLKVShaji-Normal';
+                  src: url('/fonts/mlkv-shaji/MLKVShaji-Normal.ttf') format('truetype');
+                }
+                @font-face {
+                  font-family: 'MVMAthira-Bold';
+                  src: url('/fonts/mvm-athira/MVMAthira-Bold.ttf') format('truetype');
+                }
+                @font-face {
+                  font-family: 'MVMAthira-Normal';
+                  src: url('/fonts/mvm-athira/MVMAthira-Normal.ttf') format('truetype');
+                }
+                @font-face {
+                  font-family: 'Gobold-Uplow';
+                  src: url('/fonts/gobold/Gobold-Uplow.otf') format('opentype');
+                }
+                @font-face {
+                  font-family: 'Gilmer-Regular';
+                  src: url('/fonts/gilmer/Gilmer-Regular.otf') format('opentype');
+                }
+                @font-face {
+                  font-family: 'Gilmer-Medium';
+                  src: url('/fonts/gilmer/Gilmer-Medium.otf') format('opentype');
+                }
+                @font-face {
+                  font-family: 'Gilmer-Bold';
+                  src: url('/fonts/gilmer/Gilmer-Bold.otf') format('opentype');
+                }
+              `}</style>
               <div 
-                className="transition-transform duration-200 origin-center shadow-2xl relative"
+                className="transition-transform duration-200 origin-center shadow-2xl relative bg-[#F3EFE9] overflow-hidden rounded-lg"
                 style={{ 
                   transform: `scale(${previewZoom})`,
                   width: "450px",
-                  height: "600px",
+                  height: `${scaledHeight}px`,
                 }}
               >
-                <img
-                  src={generatedPoster.downloadUrl}
-                  alt="Generated Poster Preview"
-                  className="w-full h-full object-contain rounded-lg"
-                />
-                {/* Date positioning overlay — shows sample date in Malayalam */}
+                {/* Scale base 1200x(posterHeight) layout down using 0.375 factor */}
                 <div 
-                  className="absolute border border-dashed border-teal-400 bg-teal-500/10 pointer-events-none z-10 flex flex-col justify-center items-start px-1 rounded-sm"
+                  className="absolute top-0 left-0 bg-[#F3EFE9]"
                   style={{
-                    top: `${(datePositionY / 1600) * 100}%`,
-                    right: `${(datePositionX / 1200) * 100}%`,
-                    width: `${(210 / 1200) * 100}%`,
-                    height: `${(98 / 1600) * 100}%`,
+                    width: "1200px",
+                    height: `${posterHeight}px`,
+                    transform: "scale(0.375)",
+                    transformOrigin: "top left",
+                    backgroundImage: "url('/header.png')",
+                    backgroundSize: "100% auto",
+                    backgroundPosition: "top center",
+                    backgroundRepeat: "no-repeat",
+                    fontFamily: "'Gilmer-Regular', sans-serif",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    padding: "240px 35px 45px 35px",
+                    position: "relative",
                   }}
                 >
-                  <span
+                  {/* Date overlay absolute positioned */}
+                  <div 
+                    className="absolute flex flex-col justify-center text-white"
                     style={{
+                      right: `${datePositionX}px`,
+                      top: `${datePositionY}px`,
+                      width: "210px",
+                      height: "98px",
                       fontFamily: "'MVMAthira-Bold', sans-serif",
-                      fontWeight: 700,
-                      fontSize: "clamp(5px, 1.3vw, 11px)",
-                      color: "white",
+                      fontSize: "34px",
+                      fontWeight: "bold",
                       lineHeight: 0.85,
-                      textShadow: "0 1px 3px rgba(0,0,0,0.6)",
-                      whiteSpace: "nowrap",
+                      textAlign: "left"
                     }}
-                  >{calDayMonth}</span>
-                  <span
+                  >
+                    <span style={{ fontFamily: "'MVMAthira-Bold', sans-serif", fontSize: "34px", fontWeight: "bold", lineHeight: 0.85, whiteSpace: "nowrap" }}>{calDayMonth}</span>
+                    <span style={{ fontFamily: "'MVMAthira-Bold', sans-serif", fontSize: "34px", fontWeight: "bold", lineHeight: 0.85, marginTop: "0px", whiteSpace: "nowrap" }}>{calYearWeekday}</span>
+                  </div>
+
+                  {/* Dynamic Schedule Area */}
+                  <div 
+                    className="flex flex-col justify-center"
                     style={{
-                      fontFamily: "'MVMAthira-Bold', sans-serif",
-                      fontWeight: 700,
-                      fontSize: "clamp(5px, 1.3vw, 11px)",
-                      color: "white",
-                      lineHeight: 0.85,
-                      textShadow: "0 1px 3px rgba(0,0,0,0.6)",
-                      whiteSpace: "nowrap",
+                      flex: 1,
+                      gap: deptKeysCount <= 3 ? "36px" : deptKeysCount <= 5 ? "24px" : "20px",
+                      margin: "15px 0 25px 0"
                     }}
-                  >{calYearWeekday}</span>
+                  >
+                    {(() => {
+                      const previewDeptKeys = Object.keys(gpDepts);
+                      const previewDocRowHeight = deptKeysCount <= 3 ? "110px" : deptKeysCount <= 5 ? "95px" : "90px";
+
+                      return previewDeptKeys.map((deptName) => {
+                        const deptItems = gpDepts[deptName];
+                        const isPhysio = deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³";
+
+                        if (isPhysio) {
+                          return (
+                            <div 
+                              key={deptName}
+                              className="w-full bg-white border border-[#E4E7EB] rounded-[24px] overflow-hidden grid"
+                              style={{ gridTemplateColumns: "1fr 285px", height: "163px" }}
+                            >
+                              <div 
+                                className="py-[15px] px-[30px] flex items-center justify-start text-[#148C8C] font-bold text-[50px] leading-[0.7] overflow-hidden"
+                                style={{ fontFamily: "'MVMAthira-Bold', sans-serif" }}
+                              >
+                                <span style={{ transform: "translateY(-14px)", display: "inline-block", width: "100%" }}>{deptName}</span>
+                              </div>
+                              <div className="bg-[#577C8E] flex flex-col items-center justify-center py-[4px] px-[15px]">
+                                <div 
+                                  className="bg-[#148C8C] text-white rounded-[8px] py-[2px] px-[12px] flex flex-col items-center justify-center text-center shadow-[0_2px_6px_rgba(20,140,140,0.15)] mb-[12px]"
+                                  style={{ fontFamily: "'MVMAthira-Bold', sans-serif" }}
+                                >
+                                  <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>FÃm Znhkhpw</span>
+                                  <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>(ªmbÀ Ah[n)</span>
+                                </div>
+                                <span 
+                                  className="text-[27px] text-white font-bold leading-none"
+                                  style={{ fontFamily: "'Gobold-Uplow', sans-serif" }}
+                                >
+                                  9:00 AM - 5:00 PM
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div 
+                            key={deptName}
+                            className="grid"
+                            style={{
+                              gridTemplateColumns: "310px 535px 285px",
+                              width: "100%"
+                            }}
+                          >
+                            <div className="flex items-center justify-center">
+                              <div 
+                                  className="bg-[#577C8E] text-white rounded-l-[24px] w-full h-[120px] flex items-center justify-start py-[15px] px-[20px] text-left leading-[1.0] font-bold shadow-[0_4px_10px_rgba(74,107,130,0.15)] overflow-hidden"
+                                  style={{
+                                    fontFamily: "'MVMAthira-Bold', sans-serif",
+                                    fontSize: "42px",
+                                    whiteSpace: "normal",
+                                    wordBreak: "keep-all",
+                                    overflowWrap: "break-word"
+                                  }}
+                                >
+                                  <span style={{ transform: "translateY(-10px)", display: "inline-block", width: "100%" }}>{deptName}</span>
+                                </div>
+                              </div>
+
+                              {/* Middle: Doctors Card */}
+                              <div 
+                                className="bg-white border-y border-[#E4E7EB] py-[10px] px-[35px] flex flex-col justify-around shadow-[0_4px_12px_rgba(0,0,0,0.02)]"
+                              >
+                                {deptItems.map((item, idx) => {
+                                  const docName = item.doctorNameMalayalamMVM || "[Missing Name]";
+                                  const qual = item.doctorQualificationEnglish || "";
+                                  return (
+                                    <React.Fragment key={item.id}>
+                                      {idx > 0 && <div className="h-[1px] bg-[#E2E8F0] w-full" />}
+                                      <div 
+                                        className="flex flex-col justify-center"
+                                        style={{ minHeight: previewDocRowHeight, padding: "12px 0", transform: "translateY(-8px)" }}
+                                      >
+                                        <div 
+                                          className="text-[#305C71] font-bold leading-[1.0]"
+                                          style={{
+                                            fontFamily: "'MLKVShaji-Bold', sans-serif",
+                                            fontSize: "50px"
+                                          }}
+                                        >
+                                          {docName}
+                                        </div>
+                                        {qual && (
+                                          <div 
+                                            className="text-[#95B6C7] mt-[4px] leading-[0.9]"
+                                            style={{
+                                              fontFamily: "'Gilmer-Medium', sans-serif",
+                                              fontSize: "24px",
+                                              wordBreak: "break-word"
+                                            }}
+                                          >
+                                            {qual}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Right: Time Badges */}
+                              <div 
+                                className="flex flex-col h-full"
+                                style={deptItems.length > 1 ? { gap: "12px" } : {}}
+                              >
+                                {deptItems.map((item) => {
+                                  const timeStr = `${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+                                  const borderRadius = deptItems.length === 1 ? "0 24px 24px 0" : "0 20px 20px 0";
+                                  return (
+                                    <div key={item.id} className="flex flex-1 w-full">
+                                      <div 
+                                        className="bg-[#577C8E] text-white w-full h-full flex items-center justify-center font-bold text-center p-[10px] shadow-[0_4px_10px_rgba(74,107,130,0.15)]"
+                                        style={{
+                                          borderRadius,
+                                          fontFamily: "'Gobold-Uplow', sans-serif",
+                                          fontSize: "27px"
+                                        }}
+                                      >
+                                        <span>{timeStr}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="w-full h-[353px]">
+                      <img src="/footer.png" className="w-full h-full object-fill" alt="Footer" />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
             {/* Right: Controls & Info */}
             <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-100 p-6 flex flex-col justify-between bg-slate-50/50">
@@ -1465,9 +1734,16 @@ function RequestDetailsContent() {
                       type="button"
                       disabled={isSavingPosition}
                       onClick={handleSavePosition}
-                      className="text-[9px] text-teal-600 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs transition-colors"
+                      className="text-[9px] text-teal-650 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
                     >
-                      {isSavingPosition ? "Saving..." : "Save"}
+                      {positionSavedFeedback ? (
+                        <>
+                          <Check className="h-3 w-3" />
+                          <span>Saved!</span>
+                        </>
+                      ) : (
+                        <span>{isSavingPosition ? "Saving..." : "Save"}</span>
+                      )}
                     </button>
                   </div>
 
@@ -1482,7 +1758,10 @@ function RequestDetailsContent() {
                         min="0"
                         max="400"
                         value={datePositionY}
-                        onChange={(e) => setDatePositionY(parseInt(e.target.value, 10))}
+                        onChange={(e) => {
+                          setDatePositionY(parseInt(e.target.value, 10));
+                          setIsPosterOutdated(true);
+                        }}
                         className="w-full accent-teal-600 cursor-pointer h-1 bg-slate-200 rounded-lg appearance-none"
                       />
                     </div>
@@ -1497,7 +1776,10 @@ function RequestDetailsContent() {
                         min="0"
                         max="400"
                         value={datePositionX}
-                        onChange={(e) => setDatePositionX(parseInt(e.target.value, 10))}
+                        onChange={(e) => {
+                          setDatePositionX(parseInt(e.target.value, 10));
+                          setIsPosterOutdated(true);
+                        }}
                         className="w-full accent-teal-600 cursor-pointer h-1 bg-slate-200 rounded-lg appearance-none"
                       />
                     </div>
@@ -1533,38 +1815,22 @@ function RequestDetailsContent() {
               <div className="flex flex-col gap-2.5 mt-6 md:mt-0">
                 <button
                   type="button"
-                  disabled={generating || isSavingPosition}
-                  onClick={async () => {
-                    await handleSavePosition();
-                    setShowPreviewModal(false);
-                    await handleGeneratePoster();
-                    setShowPreviewModal(true);
-                  }}
+                  disabled={isDownloadingPNG || generating}
+                  onClick={handleDownloadPNG}
                   className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-xs py-3 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
                 >
-                  {generating ? (
+                  {isDownloadingPNG || generating ? (
                     <>
                       <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Regenerating...</span>
+                      <span>{isDownloadingPNG ? "Regenerating & Downloading..." : "Regenerating..."}</span>
                     </>
                   ) : (
                     <>
-                      <RefreshCw className="h-3.5 w-3.5" />
-                      <span>Save & Regenerate</span>
+                      <Download className="h-4 w-4" />
+                      <span>{isPosterOutdated ? "Download PNG (Regenerating)" : "Download PNG"}</span>
                     </>
                   )}
                 </button>
-
-                <a
-                  href={generatedPoster.downloadUrl}
-                  download={`arogya-doctors-${dateString}.png`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>Download PNG</span>
-                </a>
 
                 {status !== "completed" && (
                   <button
@@ -1583,7 +1849,8 @@ function RequestDetailsContent() {
             </div>
           </div>
         </div>
-      )}
+      );
+    })()}
     </div>
   );
 }
