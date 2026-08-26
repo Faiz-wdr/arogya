@@ -1,0 +1,67 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper to get user document
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check user roles
+    function isStaff() {
+      return isAuthenticated() && getUserData().role == 'staff';
+    }
+
+    // Designer acts as both administrator and designer in Phase 2
+    function isDesigner() {
+      return isAuthenticated() && getUserData().role == 'designer';
+    }
+
+    function isActive() {
+      return isAuthenticated() && getUserData().isActive == true;
+    }
+
+    // Users rules
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // Allow users to write their own profile during registration/update, or designers to edit any profile
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isDesigner());
+    }
+
+    // Departments rules
+    match /departments/{departmentId} {
+      allow read: if isAuthenticated();
+      allow write: if isDesigner();
+    }
+
+    // Doctors rules
+    match /doctors/{doctorId} {
+      allow read: if isAuthenticated();
+      allow write: if isDesigner();
+    }
+
+    // Poster requests rules
+    match /posterRequests/{dateString} {
+      allow read: if isAuthenticated();
+      // Allow creation/updates if the user is designer or active staff
+      allow write: if isDesigner() || (isStaff() && isActive());
+
+      // Subcollection for schedule items
+      match /scheduleItems/{itemId} {
+        allow read: if isAuthenticated();
+        allow write: if isDesigner() || (isStaff() && isActive());
+      }
+    }
+
+    // App settings rules (poster date positioning, etc.)
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isDesigner();
+    }
+  }
+}

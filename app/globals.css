@@ -12,15 +12,20 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@font-face {
+  font-family: 'MLKVShaji-Bold';
+  src: url('/fonts/mlkv-shaji/MLKVShaji-Bold.ttf') format('truetype');
+  font-weight: bold;
+}
+
+@font-face {
+  font-family: 'MVMAthira-Bold';
+  src: url('/fonts/mvm-athira/MVMAthira-Bold.ttf') format('truetype');
+  font-weight: bold;
 }

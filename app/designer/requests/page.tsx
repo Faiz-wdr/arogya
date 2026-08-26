@@ -1,0 +1,163 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { fetchAllPosterRequests, PosterRequest } from "@/lib/services/db";
+import { Calendar, ChevronRight, Filter, AlertCircle, FileSpreadsheet, Clock } from "lucide-react";
+
+export default function PosterRequestsPage() {
+  const [requests, setRequests] = useState<Omit<PosterRequest, "scheduleItems">[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Filters
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+
+  const loadRequests = async () => {
+    setLoading(true);
+    try {
+      const data = await fetchAllPosterRequests();
+      setRequests(data);
+    } catch (error) {
+      console.error("Error loading requests:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  // Filter logic
+  const filteredRequests = requests.filter((req) => {
+    const matchesStatus = selectedStatus ? req.status === selectedStatus : true;
+    const matchesDate = selectedDate ? req.date === selectedDate : true;
+    return matchesStatus && matchesDate;
+  });
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Title Header */}
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-bold text-slate-900">Poster Requests Log</h2>
+        <p className="text-xs text-slate-500">Track, edit, and update the status of schedule posters</p>
+      </div>
+
+      {/* Filter Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Status Dropdown */}
+        <div className="relative flex items-center">
+          <Filter className="absolute left-3.5 h-4.5 w-4.5 text-slate-400" />
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-sm bg-white text-slate-700 h-11 appearance-none"
+          >
+            <option value="">All Statuses</option>
+            <option value="draft">Draft</option>
+            <option value="submitted">Submitted</option>
+            <option value="processing">Processing</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+
+        {/* Date Filter */}
+        <div className="relative flex items-center">
+          <Calendar className="absolute left-3.5 h-4.5 w-4.5 text-slate-400" />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-sm bg-white text-slate-700 h-11 cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* Clear Filter Indicator */}
+      {(selectedStatus || selectedDate) && (
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedStatus("");
+            setSelectedDate("");
+          }}
+          className="text-xs font-semibold text-teal-600 hover:text-teal-700 self-start cursor-pointer hover:underline -mt-3 pl-1"
+        >
+          Clear filters
+        </button>
+      )}
+
+      {/* Requests Logs */}
+      {loading ? (
+        <div className="bg-white border border-slate-100 rounded-2xl py-16 flex flex-col items-center justify-center gap-2">
+          <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-xs text-slate-400 font-semibold mt-1">Loading poster requests...</span>
+        </div>
+      ) : filteredRequests.length === 0 ? (
+        <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
+          <div className="p-3.5 rounded-full bg-teal-50/40 text-teal-600">
+            <FileSpreadsheet className="h-6 w-6" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <h4 className="font-bold text-slate-800 text-sm">No Poster Requests found</h4>
+            <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed">
+              No daily schedules match the selected filters or have been created in the database.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filteredRequests.map((request) => (
+            <Link
+              key={request.date}
+              href={`/designer/requests/${request.date}`}
+              className="bg-white hover:bg-teal-50/20 border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 text-left transition-all active:scale-[0.99] cursor-pointer shadow-xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-teal-50/70 text-teal-600 shrink-0">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-bold text-slate-800">
+                    {new Date(request.date).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                  
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      By {request.createdByName || "Staff"}
+                    </span>
+                    <span className="text-[10px] text-slate-450 font-semibold bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">
+                      {request.doctorCount || 0} Doctors
+                    </span>
+                    {/* Status Badge */}
+                    <span
+                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                        request.status === "completed"
+                          ? "bg-teal-100/50 text-teal-700"
+                          : request.status === "processing"
+                          ? "bg-blue-50 text-blue-700 border border-blue-100"
+                          : request.status === "submitted"
+                          ? "bg-amber-50 text-amber-700 border border-amber-100"
+                          : "bg-slate-50 text-slate-500"
+                      }`}
+                    >
+                      {request.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <ChevronRight className="h-5 w-5 text-slate-400 shrink-0" />
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
