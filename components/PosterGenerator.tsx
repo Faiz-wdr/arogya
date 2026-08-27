@@ -27,9 +27,17 @@ const formatPosterDate = (date: Date) => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
-// Get Malayalam name of the day of the week
+// Get Malayalam MVM name of the day of the week
 const getMalayalamDay = (date: Date) => {
-  const days = ["ഞായർ", "തിങ്കൾ", "ചൊവ്വ", "ബുധൻ", "വ്യാഴം", "വെള്ളി", "ശനി"];
+  const days = [
+    "ªmbÀ",        // Sunday
+    "Xn¦Ä",        // Monday
+    "sNmÆ",        // Tuesday
+    "_p[³",        // Wednesday
+    "hymgw",        // Thursday
+    "shÅn",        // Friday
+    "i\\n"          // Saturday
+  ];
   return days[date.getDay()];
 };
 
@@ -48,10 +56,10 @@ export default function PosterGenerator() {
   // Alignment coordinates and size state (defaults calibrated for 1728 x 2560 services.png)
   const defaultCoords = {
     dateX: 1500,
-    dateY: 195,
-    dayY: 285,
-    dateFontSize: 52,
-    dayFontSize: 48,
+    dateY: 172,
+    dayY: 245,
+    dateFontSize: 76,
+    dayFontSize: 76,
     coverX: 1285,
     coverY: 100,
     coverW: 420,
@@ -145,11 +153,13 @@ export default function PosterGenerator() {
       ctx.textBaseline = "middle";
 
       // Draw Date
-      ctx.font = `${dateFontWeight} ${coords.dateFontSize}px Manjari, sans-serif`;
+      const dateFont = dateFontWeight === "bold" ? "MVMAthira-Bold" : "MVMAthira-Normal";
+      ctx.font = `${coords.dateFontSize}px ${dateFont}, sans-serif`;
       ctx.fillText(dateText, coords.dateX, coords.dateY);
 
       // Draw Day
-      ctx.font = `${dayFontWeight} ${coords.dayFontSize}px Manjari, sans-serif`;
+      const dayFont = dayFontWeight === "bold" ? "MVMAthira-Bold" : "MVMAthira-Normal";
+      ctx.font = `${coords.dayFontSize}px ${dayFont}, sans-serif`;
       ctx.fillText(dayText, coords.dateX, coords.dayY);
     };
   }, [selectedDate, coords, dateFontWeight, dayFontWeight]);
@@ -157,9 +167,8 @@ export default function PosterGenerator() {
   // Load the font & trigger render
   useEffect(() => {
     Promise.all([
-      document.fonts.load(`bold 52px Manjari`),
-      document.fonts.load(`normal 52px Manjari`),
-      document.fonts.load(`300 52px Manjari`),
+      document.fonts.load(`52px MVMAthira-Bold`),
+      document.fonts.load(`52px MVMAthira-Normal`),
     ]).then(() => {
       setIsFontLoaded(true);
       drawCanvas();
@@ -196,10 +205,17 @@ export default function PosterGenerator() {
 
   return (
     <div className="flex flex-col gap-5 font-sans pb-4">
-      {/* Dynamic stylesheets for Google Fonts (Hoisted automatically by React 19) */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Manjari:wght@300;400;700&display=swap" rel="stylesheet" />
+      {/* Font face declaration for MVM Athira */}
+      <style>{`
+        @font-face {
+          font-family: 'MVMAthira-Bold';
+          src: url('/fonts/mvm-athira/MVMAthira-Bold.ttf') format('truetype');
+        }
+        @font-face {
+          font-family: 'MVMAthira-Normal';
+          src: url('/fonts/mvm-athira/MVMAthira-Normal.ttf') format('truetype');
+        }
+      `}</style>
 
       {/* Header */}
       <div className="flex justify-between items-center border-b border-slate-100 pb-3">

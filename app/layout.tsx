@@ -22,6 +22,9 @@ const notoSansMalayalam = Noto_Sans_Malayalam({
 export const metadata: Metadata = {
   title: "Arogya Hospital Poster Management",
   description: "Daily Doctor Availability and Poster Creation System",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

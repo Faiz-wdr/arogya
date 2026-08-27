@@ -36,11 +36,11 @@ function ScheduleContent() {
   const [selectedDate, setSelectedDate] = useState(getTomorrowDateString());
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
   const [status, setStatus] = useState<"draft" | "submitted" | "processing" | "completed">("draft");
-  
+
   // Master Data
   const [departments, setDepartments] = useState<Department[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  
+
   // Loading & Action States
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -53,13 +53,13 @@ function ScheduleContent() {
   // Phase 4 Bulk Import States
   const [pastedText, setPastedText] = useState("");
   const isReviewing = false;
-  const setIsReviewing = (val: boolean) => {};
+  const setIsReviewing = (val: boolean) => { };
   const reviewDate = "";
-  const setReviewDate = (val: string) => {};
+  const setReviewDate = (val: string) => { };
   const reviewItems: any[] = [];
-  const setReviewItems = (val: any) => {};
-  const handleAddReviewItem = () => {};
-  const handleConfirmReview = async () => {};
+  const setReviewItems = (val: any) => { };
+  const handleAddReviewItem = () => { };
+  const handleConfirmReview = async () => { };
 
   const [duplicateCheck, setDuplicateCheck] = useState<{
     showDialog: boolean;
@@ -132,9 +132,9 @@ function ScheduleContent() {
         if (posterRequest) {
           setStatus(posterRequest.status);
           setShowPhysiotherapy(posterRequest.showPhysiotherapy !== undefined ? posterRequest.showPhysiotherapy : isWeekday);
-          
+
           let items = posterRequest.scheduleItems || [];
-          
+
           // Verify if fixed service needs to be auto-injected (if weekday and missing)
           const hasFixedService = items.some((item) => item.itemType === "fixed_service");
           if (isWeekday && !hasFixedService) {
@@ -152,7 +152,7 @@ function ScheduleContent() {
             // Remove fixed service on Sunday if it accidentally exists
             items = items.filter((item) => item.itemType !== "fixed_service");
           }
-          
+
           // Sort items by displayOrder
           items.sort((a, b) => a.displayOrder - b.displayOrder);
           setScheduleItems(items);
@@ -194,7 +194,7 @@ function ScheduleContent() {
       id: `local_${Date.now()}`,
       displayOrder: scheduleItems.length,
     };
-    
+
     // Put doctor items before the fixed service if it exists
     const fixedIndex = scheduleItems.findIndex((item) => item.itemType === "fixed_service");
     if (fixedIndex !== -1) {
@@ -389,7 +389,7 @@ function ScheduleContent() {
       setSubmitError("Please paste some schedule text first.");
       return;
     }
-    
+
     setSubmitError(null);
     try {
       const parsed = parseSchedule(pastedText, departments, doctors);
@@ -398,11 +398,11 @@ function ScheduleContent() {
       if (!dateToUse) {
         dateToUse = selectedDate;
       }
-      
+
       setLoading(true);
       const existingRequest = await fetchPosterRequestWithItems(dateToUse);
       setLoading(false);
-      
+
       if (existingRequest) {
         setDuplicateCheck({
           showDialog: true,
@@ -412,7 +412,7 @@ function ScheduleContent() {
         });
       } else {
         const parsedItemsToLoad = convertParsedToScheduleItems(parsed.items);
-        
+
         // Auto-inject Physiotherapy service if weekday
         const day = getDayOfWeek(dateToUse);
         if (day !== 0) {
@@ -426,7 +426,7 @@ function ScheduleContent() {
             itemType: "fixed_service",
           });
         }
-        
+
         setScheduleItems(parsedItemsToLoad);
         setSelectedDate(dateToUse);
         setPastedText("");
@@ -443,21 +443,21 @@ function ScheduleContent() {
     try {
       const existingRequest = await fetchPosterRequestWithItems(duplicateCheck.date);
       const existingItems = existingRequest?.scheduleItems || [];
-      
+
       // Filter out physiotherapy fixed service to avoid duplication
       const filteredExisting = existingItems.filter(item => item.departmentId !== "dept_physiotherapy");
-      
+
       const newParsedItems = convertParsedToScheduleItems(duplicateCheck.parsedItems);
-      
+
       // Merge
       let merged = [...filteredExisting, ...newParsedItems];
-      
+
       // Re-sort displayOrder
       merged = merged.map((item, index) => ({
         ...item,
         displayOrder: index
       }));
-      
+
       // Append fixed service if weekday
       const day = getDayOfWeek(duplicateCheck.date);
       if (day !== 0 && !merged.some(item => item.itemType === "fixed_service")) {
@@ -471,7 +471,7 @@ function ScheduleContent() {
           itemType: "fixed_service",
         });
       }
-      
+
       setScheduleItems(merged);
       setSelectedDate(duplicateCheck.date);
       setPastedText("");
@@ -502,11 +502,11 @@ function ScheduleContent() {
   const handleSaveMasterDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (masterDocForm.reviewIndex === null) return;
-    
+
     setSubmitting(true);
     try {
       const docId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       await saveDoctor(docId, {
         departmentId: masterDocForm.departmentId,
         nameEnglish: masterDocForm.nameEnglish,
@@ -553,13 +553,12 @@ function ScheduleContent() {
             <h2 className="text-xl font-bold text-slate-900">Availability Planner</h2>
             <p className="text-xs text-slate-500 mt-0.5">Manage daily poster schedules</p>
           </div>
-          
+
           <span
-            className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-              status === "submitted"
+            className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${status === "submitted"
                 ? "bg-teal-500/10 text-teal-600 border border-teal-500/20"
                 : "bg-teal-50 text-teal-600 border border-teal-100/30"
-            }`}
+              }`}
           >
             {status}
           </span>
@@ -592,18 +591,17 @@ function ScheduleContent() {
               <div key={idx} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-xs flex flex-col gap-3">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                      item.isUnrecognized
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${item.isUnrecognized
                         ? "bg-red-150 text-red-700 border border-red-200"
                         : item.isUnknownDoctor
-                        ? "bg-amber-100 text-amber-800 border border-amber-200"
-                        : "bg-emerald-100/80 text-emerald-800"
-                    }`}>
+                          ? "bg-amber-100 text-amber-800 border border-amber-200"
+                          : "bg-emerald-100/80 text-emerald-800"
+                      }`}>
                       {item.isUnrecognized
                         ? "Unrecognized Line"
                         : item.isUnknownDoctor
-                        ? "New / Not in Doctor Database"
-                        : "Matched Doctor"}
+                          ? "New / Not in Doctor Database"
+                          : "Matched Doctor"}
                     </span>
                     {item.notes && !item.isUnrecognized && (
                       <span className="text-[10px] text-amber-600 font-semibold italic">{item.notes}</span>
@@ -714,7 +712,7 @@ function ScheduleContent() {
                               >
                                 Select Existing Doctor instead
                               </button>
-                              
+
                               <button
                                 type="button"
                                 onClick={() => handleRegisterNewDoctor(idx)}
@@ -767,7 +765,7 @@ function ScheduleContent() {
                             const updated = [...reviewItems];
                             const newStart = e.target.value;
                             updated[idx].startTime = newStart;
-                            
+
                             // Dynamically manage "Missing time schedule" warning
                             const currentNotes = updated[idx].notes || "";
                             const notesList = currentNotes ? currentNotes.split(";").map((p: string) => p.trim()) : [];
@@ -834,11 +832,10 @@ function ScheduleContent() {
                           }
                         }}
                         placeholder={item.isUnknownDoctor ? "e.g. MBBS, MD" : "Qualification from master data"}
-                        className={`w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold h-10 focus:outline-none ${
-                          item.isUnknownDoctor
+                        className={`w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold h-10 focus:outline-none ${item.isUnknownDoctor
                             ? "bg-white focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-800"
                             : "bg-teal-50/10 text-teal-700/70"
-                        }`}
+                          }`}
                       />
                     </div>
                   </>
@@ -863,7 +860,7 @@ function ScheduleContent() {
               <Plus className="h-5 w-5 text-teal-600" />
               <span>Add Doctor Item</span>
             </button>
-            
+
             {submitError && (
               <div className="p-3.5 rounded-2xl bg-red-50 border border-red-100 text-xs font-semibold text-red-600 flex items-start gap-2 animate-shake mb-4">
                 <AlertCircle className="h-4.5 w-4.5 shrink-0 text-red-500 mt-0.5" />
@@ -938,9 +935,6 @@ function ScheduleContent() {
                 <Activity className="h-5 w-5" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Poster Options
-                </span>
                 <span className="text-sm font-bold text-slate-800">
                   Physiotherapy & Rehabilitation
                 </span>
@@ -960,12 +954,9 @@ function ScheduleContent() {
           {/* WhatsApp Paste Import Section */}
           <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col gap-3.5">
             <div className="flex flex-col gap-1">
-              <h3 className="text-sm font-bold text-slate-800">Import WhatsApp Schedule</h3>
-              <p className="text-xs text-slate-505">
-                Paste the WhatsApp Malayalam schedule text below to parse and map availability details.
-              </p>
+              <h3 className="text-sm font-bold text-slate-800">Import Schedule</h3>
             </div>
-            
+
             <textarea
               value={pastedText}
               onChange={(e) => setPastedText(e.target.value)}
@@ -989,7 +980,7 @@ function ScheduleContent() {
               >
                 <span>Paste Text</span>
               </button>
-              
+
               <button
                 type="button"
                 onClick={handleParseSchedule}
@@ -998,7 +989,7 @@ function ScheduleContent() {
                 {loading ? (
                   <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <span>Parse Schedule</span>
+                  <span>Import Schedule</span>
                 )}
               </button>
             </div>
@@ -1040,7 +1031,7 @@ function ScheduleContent() {
               joinedItems.forEach((item) => {
                 const isFixed = item.itemType === "fixed_service";
                 const lastGroup = groupedDeps[groupedDeps.length - 1];
-                
+
                 if (lastGroup && lastGroup.departmentId === item.departmentId && lastGroup.isFixed === isFixed) {
                   lastGroup.items.push(item);
                 } else {
@@ -1080,9 +1071,8 @@ function ScheduleContent() {
                             return (
                               <div
                                 key={item.id}
-                                className={`flex justify-between items-center gap-3 ${
-                                  idxInGroup > 0 ? "border-t border-slate-100/50 pt-4" : ""
-                                }`}
+                                className={`flex justify-between items-center gap-3 ${idxInGroup > 0 ? "border-t border-slate-100/50 pt-4" : ""
+                                  }`}
                               >
                                 <div className="flex-1 flex flex-col gap-1">
                                   <h4 className="font-bold text-slate-900 text-sm">
@@ -1169,7 +1159,7 @@ function ScheduleContent() {
                 <Plus className="h-5 w-5 text-teal-600" />
                 <span>Add Doctor</span>
               </button>
-              
+
               <button
                 type="button"
                 disabled={submitting}
@@ -1356,7 +1346,7 @@ function ScheduleContent() {
                 <span className="font-bold uppercase text-[9px] px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">{duplicateCheck.existingStatus}</span>
               </div>
             </div>
-            
+
             <div className="w-full flex flex-col gap-2.5 mt-2">
               <button
                 type="button"

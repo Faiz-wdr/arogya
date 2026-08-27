@@ -11,8 +11,8 @@ export default function PublicPosterPage() {
       {/* Standalone Brand Header */}
       <header className="bg-white border-b border-slate-100 py-4 px-6 flex justify-between items-center shadow-xs">
         <div className="flex items-center gap-2.5 max-w-4xl mx-auto w-full">
-          <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-teal-50/80 text-teal-600">
-            <Activity className="h-5 w-5" />
+          <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-teal-50/80 overflow-hidden">
+            <img src="/favicon.svg" alt="Arogya Logo" className="h-6 w-6 object-contain" />
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-bold text-slate-900 leading-tight">Arogya Hospital</span>

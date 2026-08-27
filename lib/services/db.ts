@@ -256,10 +256,12 @@ export async function fetchStaffUsers(): Promise<StaffUserProfile[]> {
     orderBy("createdAt", "desc")
   );
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => ({
+  const users = querySnapshot.docs.map((doc) => ({
     uid: doc.id,
     ...doc.data(),
   })) as StaffUserProfile[];
+
+  return users.filter((u) => u.name !== "Temp Seed Admin" && u.uid !== "temp_seed_admin");
 }
 
 // 10. Update user active status
@@ -380,10 +382,16 @@ export async function fetchAllPosterRequests(): Promise<Omit<PosterRequest, "sch
     usersMap[udoc.id] = udoc.data().name || "Unknown Staff";
   });
 
-  return requests.map((req) => ({
-    ...req,
-    createdByName: usersMap[req.createdBy] || "Unknown Staff",
-  }));
+  return requests.map((req) => {
+    let name = usersMap[req.createdBy] || "Unknown Staff";
+    if (name === "Temp Seed Admin") {
+      name = "System Admin";
+    }
+    return {
+      ...req,
+      createdByName: name,
+    };
+  });
 }
 
 // 15. Update poster request status

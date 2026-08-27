@@ -28,7 +28,7 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white">
         <div className="flex flex-col items-center gap-3">
-          <Activity className="h-10 w-10 text-teal-600 animate-pulse" />
+          <img src="/favicon.svg" alt="Arogya Logo" className="h-12 w-12 animate-pulse object-contain" />
           <span className="text-sm font-medium text-slate-500">Loading Staff Portal...</span>
         </div>
       </div>
@@ -40,8 +40,8 @@ export default function StaffLayout({ children }: { children: React.ReactNode })
       {/* Mobile Header */}
       <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-xs">
         <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-teal-50 text-teal-600">
-            <Activity className="h-4.5 w-4.5" />
+          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-teal-50 overflow-hidden">
+            <img src="/favicon.svg" alt="Arogya Logo" className="h-5 w-5 object-contain" />
           </div>
           <span className="text-base font-bold text-slate-900 tracking-tight">Arogya Staff</span>
         </div>

@@ -131,11 +131,44 @@ export function generatePosterHtml(
           <div class="doctors-card">
             ${deptItems
           .map((item) => {
-            const docName = item.doctorNameMalayalamMVM || "[Missing Name]";
-            const qual = item.doctorQualificationEnglish || "";
+            let docName = item.doctorNameMalayalamMVM || item.doctorNameEnglish || item.doctorNameMalayalamUnicode || "[Missing Name]";
+            let qual = item.doctorQualificationEnglish || "";
+
+            // Check if department is General OP
+            const isGeneralOp = 
+              item.departmentId === "dept_general_op" || 
+              (deptName && (
+                (deptName.includes("PÈW¬") && deptName.includes("OP")) || 
+                (deptName.includes("ജനറൽ") && (deptName.includes("ഒ.പി") || deptName.includes("ഒ പി") || deptName.includes("OP"))) ||
+                (deptName.toLowerCase().includes("general") && deptName.toLowerCase().includes("op"))
+              )) ||
+              (item.departmentNameEnglish && 
+                item.departmentNameEnglish.toLowerCase().includes("general") && 
+                item.departmentNameEnglish.toLowerCase().includes("op")
+              ) ||
+              (item.departmentNameMalayalamUnicode && 
+                item.departmentNameMalayalamUnicode.includes("ജനറൽ") && 
+                (item.departmentNameMalayalamUnicode.includes("ഒ.പി") || item.departmentNameMalayalamUnicode.includes("ഒ പി") || item.departmentNameMalayalamUnicode.includes("OP"))
+              );
+            if (docName === "RMO" || (isGeneralOp && (docName === "[Missing Name]" || !docName))) {
+              docName = "RMO";
+              qual = "";
+            }
+
+            // Determine if the displayed name is in English
+            const cleanName = (name: string) => name.toLowerCase().replace(/^(dr|tum)\.?\s*/, "").trim();
+            const isEnglish = docName === "RMO" || 
+                              docName.startsWith("Dr.") || 
+                              (item.doctorNameEnglish && cleanName(docName) === cleanName(item.doctorNameEnglish));
+
+            // Apply Muller font for English doctor names
+            const docStyle = isEnglish 
+              ? "font-family: 'Muller', sans-serif; font-weight: normal; font-size: 44px;" 
+              : `font-family: 'MLKVShaji-Bold', sans-serif; font-size: ${docFontSize}px;`;
+
             return `
                   <div class="doctor-info-row" style="min-height: ${docRowHeight}; padding: 12px 0; transform: translateY(-8px);">
-                    <div class="doctor-name" style="font-size: ${docFontSize}px;">${docName}</div>
+                    <div class="doctor-name" style="${docStyle}">${docName}</div>
                     ${qual ? `<div class="doctor-qual" style="font-size: ${qualFontSize}px;">${qual}</div>` : ""}
                   </div>
                 `;
@@ -174,6 +207,8 @@ export function generatePosterHtml(
       <meta charset="UTF-8">
       <title>Daily Doctor Availability Poster</title>
       <style>
+        @import url('https://fonts.cdnfonts.com/css/muller');
+
         @font-face {
           font-family: 'MLKVShaji-Bold';
           src: url('data:font/truetype;charset=utf-8;base64,${fonts.shajiBold}') format('truetype');
@@ -387,7 +422,7 @@ export function generatePosterHtml(
           align-items: center;
           justify-content: center;
           font-family: 'Gobold-Uplow', sans-serif;
-          font-weight: bold;
+          font-weight: normal;
           text-align: center;
           box-shadow: 0 4px 10px rgba(74, 107, 130, 0.15);
           box-sizing: border-box;
@@ -455,7 +490,7 @@ export function generatePosterHtml(
         .fs-line-2 {
           font-family: 'Gobold-Uplow', sans-serif;
           font-size: 27px;
-          font-weight: bold;
+          font-weight: normal;
           color: white;
           line-height: 1;
         }

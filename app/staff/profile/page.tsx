@@ -1,32 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { useAuth } from "@/context/AuthContext";
-import { seedDatabase } from "@/lib/services/db";
-import { LogOut, User, Mail, Shield, Database, Check, AlertCircle } from "lucide-react";
+import { LogOut, User, Mail, Shield } from "lucide-react";
 
 export default function ProfilePage() {
   const { profile, logout } = useAuth();
-  const [seeding, setSeeding] = useState(false);
-  const [seedResult, setSeedResult] = useState<{ success: boolean; message: string } | null>(null);
-
-  const handleSeed = async () => {
-    setSeeding(true);
-    setSeedResult(null);
-    const success = await seedDatabase();
-    setSeeding(false);
-    if (success) {
-      setSeedResult({
-        success: true,
-        message: "Database seeded successfully with departments & doctors!",
-      });
-    } else {
-      setSeedResult({
-        success: false,
-        message: "Failed to seed database. Check browser console.",
-      });
-    }
-  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,51 +43,6 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Database Seeder for Development */}
-      <div className="bg-white rounded-2xl border border-slate-100 p-5 flex flex-col gap-3">
-        <div className="flex items-start gap-3">
-          <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-teal-50/50 text-teal-600 shrink-0">
-            <Database className="h-5 w-5" />
-          </div>
-          <div className="flex flex-col">
-            <h4 className="font-bold text-sm text-slate-900">Seed Database</h4>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Populate departments and doctors for development testing.
-            </p>
-          </div>
-        </div>
-
-        {seedResult && (
-          <div
-            className={`p-3 rounded-xl border text-xs font-medium flex items-center gap-2 ${
-              seedResult.success
-                ? "bg-teal-50 border-teal-100 text-teal-700"
-                : "bg-red-50 border-red-100 text-red-700"
-            }`}
-          >
-            {seedResult.success ? (
-              <Check className="h-4.5 w-4.5 shrink-0" />
-            ) : (
-              <AlertCircle className="h-4.5 w-4.5 shrink-0" />
-            )}
-            <span>{seedResult.message}</span>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={handleSeed}
-          disabled={seeding}
-          className="w-full bg-teal-50 hover:bg-teal-100/80 disabled:bg-slate-50/50 text-teal-700 disabled:text-teal-400 font-semibold text-sm rounded-xl py-2.5 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer border border-teal-100/50"
-        >
-          {seeding ? (
-            <div className="h-4 w-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-          ) : (
-            "Run Seeder Now"
-          )}
-        </button>
       </div>
 
       {/* Log Out Action */}

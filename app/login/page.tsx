@@ -39,7 +39,7 @@ export default function LoginPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-white">
         <div className="flex flex-col items-center gap-3">
-          <Activity className="h-10 w-10 text-teal-600 animate-pulse" />
+          <img src="/favicon.svg" alt="Arogya Logo" className="h-12 w-12 animate-pulse object-contain" />
           <span className="text-sm font-medium text-slate-500">Checking session...</span>
         </div>
       </div>
@@ -80,8 +80,8 @@ export default function LoginPage() {
       <main className="w-full max-w-md bg-white rounded-2xl border border-slate-100 p-6 sm:p-8">
         {/* Hospital Branding */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-teal-50 text-teal-600 mb-3">
-            <Activity className="h-6 w-6" />
+          <div className="flex items-center justify-center h-12 w-12 rounded-xl bg-teal-50 overflow-hidden mb-3">
+            <img src="/favicon.svg" alt="Arogya Logo" className="h-7 w-7 object-contain" />
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Arogya Hospital</h1>
           <p className="text-sm text-slate-500 mt-1">Poster Management System</p>
