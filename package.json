@@ -9,11 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^149.0.0",
     "date-fns": "^4.4.0",
     "firebase": "^12.18.0",
     "lucide-react": "^1.33.0",
     "next": "16.3.2",
     "puppeteer": "^25.8.0",
+    "puppeteer-core": "^25.9.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

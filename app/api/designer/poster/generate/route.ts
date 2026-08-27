@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import puppeteer from "puppeteer";
 import path from "path";
 import fs from "fs";
 import { generatePosterHtml } from "@/lib/services/posterRenderer";
@@ -82,10 +81,36 @@ export async function POST(request: Request) {
     const htmlContent = generatePosterHtml(dateString, items, headerBase64, footerBase64, fonts, showPhysiotherapy, finalX, finalY);
 
     // Launch Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    let browser: any;
+    if (process.env.NODE_ENV === "production") {
+      const puppeteerCore = await import("puppeteer-core");
+      const chromium = (await import("@sparticuz/chromium")).default as any;
+
+      let executablePath;
+      try {
+        const binPath = path.join(process.cwd(), "node_modules/@sparticuz/chromium/bin");
+        if (fs.existsSync(binPath)) {
+          executablePath = await chromium.executablePath(binPath);
+        } else {
+          executablePath = await chromium.executablePath();
+        }
+      } catch (e) {
+        executablePath = await chromium.executablePath();
+      }
+
+      browser = await puppeteerCore.launch({
+        args: chromium.args,
+        defaultViewport: chromium.defaultViewport,
+        executablePath,
+        headless: chromium.headless,
+      });
+    } else {
+      const puppeteerLocal = await import("puppeteer");
+      browser = await puppeteerLocal.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      });
+    }
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1200, height: 1600 });
