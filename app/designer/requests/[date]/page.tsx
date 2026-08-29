@@ -19,6 +19,7 @@ import {
   savePosterSettings
 } from "@/lib/services/db";
 import { getEnglishDateString, getMalayalamDateString, getMalayalamMVMDateString } from "@/lib/utils/dateUtils";
+import { parseSchedule } from "@/lib/utils/scheduleParser";
 import AddDoctorModal from "@/components/AddDoctorModal";
 import {
   Calendar,
@@ -107,6 +108,14 @@ function RequestDetailsContent() {
   // Edit Schedule Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
+
+  // Bulk Import States
+  const [pastedText, setPastedText] = useState("");
+  const [importCheck, setImportCheck] = useState<{
+    showDialog: boolean;
+    parsedDate: string | null;
+    parsedItems: any[];
+  } | null>(null);
 
   // Load request details and master data
   const loadData = async () => {
@@ -242,6 +251,118 @@ function RequestDetailsContent() {
     const updated = scheduleItems.filter((item) => item.id !== id);
     updated.forEach((item, idx) => { item.displayOrder = idx; });
     setScheduleItems(updated);
+    setIsPosterOutdated(true);
+  };
+
+  // Helper to convert parsed items into ScheduleItems format
+  const convertParsedToScheduleItems = (parsedItems: any[]): ScheduleItem[] => {
+    return parsedItems.map((item, index) => {
+      if (item.isUnknownDoctor || !item.doctor) {
+        return {
+          id: `parsed_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+          doctorId: null,
+          departmentId: item.department ? item.department.id : (item.departmentId || "unknown_dept"),
+          startTime: item.startTime || "09:00",
+          endTime: item.endTime || "13:00",
+          itemType: "doctor" as const,
+          doctorNameMalayalamUnicode: item.doctorNameUnicode || "New Doctor",
+          doctorQualificationEnglish: item.qualification || "",
+          displayOrder: index
+        };
+      } else {
+        return {
+          id: `parsed_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+          doctorId: item.doctor.id,
+          departmentId: item.department ? item.department.id : (item.departmentId || "unknown_dept"),
+          startTime: item.startTime || "09:00",
+          endTime: item.endTime || "13:00",
+          itemType: "doctor" as const,
+          displayOrder: index
+        };
+      }
+    });
+  };
+
+  // Bulk Import Handlers
+  const handleParseSchedule = async () => {
+    if (!pastedText.trim()) {
+      setError("Please paste some schedule text first.");
+      return;
+    }
+
+    setError(null);
+    try {
+      const parsed = parseSchedule(pastedText, departments, doctors);
+      setImportCheck({
+        showDialog: true,
+        parsedDate: parsed.date,
+        parsedItems: parsed.items,
+      });
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to parse schedule. Please try again.");
+    }
+  };
+
+  const handleReplaceSchedule = () => {
+    if (!importCheck) return;
+    const parsedItemsToLoad = convertParsedToScheduleItems(importCheck.parsedItems);
+
+    // Auto-inject Physiotherapy service if weekday
+    const dateObj = new Date(dateString);
+    const isWeekday = dateObj.getDay() !== 0; // 0 is Sunday
+    if (isWeekday && showPhysiotherapy) {
+      parsedItemsToLoad.push({
+        id: "fixed_physio",
+        doctorId: null,
+        departmentId: "dept_physiotherapy",
+        startTime: "09:00",
+        endTime: "17:00",
+        displayOrder: parsedItemsToLoad.length,
+        itemType: "fixed_service",
+      });
+    }
+
+    setScheduleItems(parsedItemsToLoad);
+    setPastedText("");
+    setImportCheck(null);
+    setIsPosterOutdated(true);
+  };
+
+  const handleMergeSchedule = () => {
+    if (!importCheck) return;
+    
+    // Filter out physiotherapy fixed service to avoid duplication
+    const filteredExisting = scheduleItems.filter(item => item.departmentId !== "dept_physiotherapy");
+    const newParsedItems = convertParsedToScheduleItems(importCheck.parsedItems);
+
+    // Merge
+    let merged = [...filteredExisting, ...newParsedItems];
+
+    // Re-sort displayOrder
+    merged = merged.map((item, index) => ({
+      ...item,
+      displayOrder: index
+    }));
+
+    // Append fixed service if weekday and showPhysiotherapy is enabled
+    const dateObj = new Date(dateString);
+    const isWeekday = dateObj.getDay() !== 0;
+    if (isWeekday && showPhysiotherapy && !merged.some(item => item.itemType === "fixed_service")) {
+      merged.push({
+        id: "fixed_physio",
+        doctorId: null,
+        departmentId: "dept_physiotherapy",
+        startTime: "09:00",
+        endTime: "17:00",
+        displayOrder: merged.length,
+        itemType: "fixed_service",
+      });
+    }
+
+    setScheduleItems(merged);
+    setPastedText("");
+    setImportCheck(null);
     setIsPosterOutdated(true);
   };
 
@@ -631,7 +752,47 @@ function RequestDetailsContent() {
             
             {/* LEFT COLUMN: Doctor List and Copy Area (Col span 8) */}
             <div className="lg:col-span-8 flex flex-col gap-5">
-              
+
+              {/* WhatsApp Paste Import Section */}
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col gap-3.5 animate-fadeIn">
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-sm font-bold text-slate-800">Import Schedule</h3>
+                </div>
+
+                <textarea
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="23/08/2026 ഞായർ&#10;&#10;ജനറൽ ഒ.പി&#10;ഡോ. മേബിൾ ജോൺ&#10;MBBS&#10;രാവിലെ 8 മണി രാത്രി 8 വരെ..."
+                  rows={5}
+                  className="w-full p-3.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-700 bg-slate-50/10 resize-y min-h-[120px]"
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        setPastedText(text);
+                      } catch (err) {
+                        alert("Clipboard permission not granted. Please paste text manually using keyboard shortcuts.");
+                      }
+                    }}
+                    className="flex-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl py-3 transition-all flex items-center justify-center gap-1.5 cursor-pointer h-11 shadow-xs"
+                  >
+                    <span>Paste Text</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleParseSchedule}
+                    className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl py-3 transition-all flex items-center justify-center gap-1.5 cursor-pointer h-11 shadow-xs"
+                  >
+                    <span>Import Schedule</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Doctors & Services List */}
               <div className="flex flex-col gap-4">
                 <div className="flex justify-between items-center px-1">
@@ -1252,6 +1413,63 @@ function RequestDetailsContent() {
         doctors={doctors}
         existingItems={scheduleItems}
       />
+
+      {/* Bulk Import Options Modal */}
+      {importCheck && importCheck.showDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
+            <div className="h-12 w-12 rounded-full bg-teal-50 text-teal-650 flex items-center justify-center shrink-0">
+              <Calendar className="h-6 w-6 text-teal-600" />
+            </div>
+            
+            <div className="flex flex-col gap-1.5 font-sans">
+              <h3 className="font-bold text-slate-900 text-base">Import Options</h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Choose how you want to add the {importCheck.parsedItems.length} parsed doctor entries to the current schedule.
+              </p>
+              
+              {importCheck.parsedDate && importCheck.parsedDate !== dateString && (
+                <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100 text-[10px] text-amber-850 font-semibold text-left leading-relaxed flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Date mismatch warning:</strong> The pasted text date ({importCheck.parsedDate}) does not match the schedule date ({dateString}). Overwriting or merging will apply to {dateString}.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="w-full flex flex-col gap-2 mt-2">
+              <button
+                type="button"
+                onClick={handleMergeSchedule}
+                className="w-full bg-teal-650 hover:bg-teal-700 text-white font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11 shadow-xs"
+              >
+                Merge with Current Schedule
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to completely overwrite the current schedule items on screen with these new items?")) {
+                    handleReplaceSchedule();
+                  }
+                }}
+                className="w-full bg-red-50 hover:bg-red-100 text-red-650 border border-red-100 font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
+              >
+                Replace Current Schedule
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setImportCheck(null)}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-650 font-semibold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Validation Errors Modal */}
       {showValidationModal && (
