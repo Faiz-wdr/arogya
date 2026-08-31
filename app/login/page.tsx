@@ -87,11 +87,7 @@ export default function LoginPage() {
           <p className="text-sm text-slate-500 mt-1">Poster Management System</p>
         </div>
 
-        {/* Form Title */}
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-slate-700">Sign In to Your Account</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Enter your staff credentials below</p>
-        </div>
+
 
         {/* Error Banner */}
         {error && (
