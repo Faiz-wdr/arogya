@@ -88,6 +88,7 @@ export interface PosterRequest {
     generatedByUid: string;
     generatedAt: Timestamp;
   }>;
+  customDateString?: string; // custom date string override to print on the poster
   // UI helper field
   createdByName?: string;
 }
@@ -312,7 +313,8 @@ export async function savePosterRequest(
   status: "draft" | "submitted" | "processing" | "completed",
   scheduleItems: Omit<ScheduleItem, "id" | "createdAt" | "updatedAt">[],
   showPhysiotherapy?: boolean,
-  inputMethod?: "manual" | "bulk_import"
+  inputMethod?: "manual" | "bulk_import",
+  customDateString?: string
 ): Promise<void> {
   const batch = writeBatch(db);
   const requestRef = doc(db, "posterRequests", dateString);
@@ -329,6 +331,7 @@ export async function savePosterRequest(
     doctorCount: scheduleItems.filter((i) => i.itemType === "doctor").length,
     showPhysiotherapy: showPhysiotherapy !== undefined ? showPhysiotherapy : true,
     inputMethod: inputMethod || "manual",
+    customDateString: customDateString || null,
     ...(isExisting ? {} : { createdAt: serverTimestamp() }),
   }, { merge: true });
 
@@ -406,6 +409,25 @@ export async function updatePosterRequestStatus(
   });
 }
 
+// Delete a poster request and its subcollection scheduleItems
+export async function deletePosterRequest(dateString: string): Promise<void> {
+  const batch = writeBatch(db);
+  const requestRef = doc(db, "posterRequests", dateString);
+
+  // Delete all subcollection schedule items
+  const itemsSnap = await getDocs(
+    collection(db, "posterRequests", dateString, "scheduleItems")
+  );
+  itemsSnap.docs.forEach((itemDoc) => {
+    batch.delete(itemDoc.ref);
+  });
+
+  // Delete parent document
+  batch.delete(requestRef);
+
+  await batch.commit();
+}
+
 // 17. Save generated poster metadata to poster request
 export async function saveGeneratedPosterMetadata(
   dateString: string,
@@ -449,7 +471,7 @@ export async function seedDatabase(): Promise<boolean> {
       { id: "dept_general_op", nameEnglish: "General OP", nameMalayalamUnicode: "ജനറൽ ഒ.പി", nameMalayalamMVM: "PÈW¬ OP", displayOrder: 6, isActive: true, aliases: ["ജനറൽ OP", "ജനറൽ ഒ പി", "ജനറൽ ഒ.പി."] },
       { id: "dept_paediatric_dentistry", nameEnglish: "Paediatric Dentistry", nameMalayalamUnicode: "ശിശു ദന്ത ചികിത്സ വിഭാഗം", nameMalayalamMVM: "inip Z´ NnInÕm hn`mKw", displayOrder: 7, isActive: true, aliases: ["ശിശുദന്തചികിത്സാവിഭാഗം"] },
       { id: "dept_orthodontics", nameEnglish: "Orthodontics", nameMalayalamUnicode: "ദന്ത ക്രമീകരണ വിഭാഗം", nameMalayalamMVM: "Z´ {IaoIcW hn`mKw", displayOrder: 8, isActive: true, aliases: ["ദന്തക്രമീകരണവിഭാഗം"] },
-      { id: "dept_physiotherapy", nameEnglish: "Physiotherapy & Rehabilitation", nameMalayalamUnicode: "ഫിസിയോതെറാപ്പി & റീഹാബിലിറ്റേഷൻ", nameMalayalamMVM: "^nknbmt¯d¸n & dolm_nentej³", displayOrder: 99, isActive: true, aliases: [] },
+      { id: "dept_physiotherapy", nameEnglish: "Physiotherapy & Rehabilitation", nameMalayalamUnicode: "ഫിസിയോതെറാപ്പി & റിഹാബിലിറ്റേഷൻ", nameMalayalamMVM: "^nknbmt¯d¸n & dnlm_nentäj³", displayOrder: 99, isActive: true, aliases: [] },
     ];
 
     // Seed departments

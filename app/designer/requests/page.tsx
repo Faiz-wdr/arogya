@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { fetchAllPosterRequests, PosterRequest } from "@/lib/services/db";
-import { Calendar, ChevronRight, Filter, AlertCircle, FileSpreadsheet, Clock } from "lucide-react";
+import { fetchAllPosterRequests, PosterRequest, deletePosterRequest } from "@/lib/services/db";
+import { Calendar, ChevronRight, Filter, AlertCircle, FileSpreadsheet, Clock, Trash2 } from "lucide-react";
 
 export default function PosterRequestsPage() {
   const [requests, setRequests] = useState<Omit<PosterRequest, "scheduleItems">[]>([]);
@@ -109,52 +109,79 @@ export default function PosterRequestsPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {filteredRequests.map((request) => (
-            <Link
+            <div
               key={request.date}
-              href={`/designer/requests/${request.date}`}
-              className="bg-white hover:bg-teal-50/20 border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 text-left transition-all active:scale-[0.99] cursor-pointer shadow-xs"
+              className="bg-white border border-slate-100 rounded-2xl flex items-center justify-between overflow-hidden shadow-xs hover:shadow-sm transition-all"
             >
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-teal-50/70 text-teal-600 shrink-0">
-                  <Calendar className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-bold text-slate-800">
-                    {new Date(request.date).toLocaleDateString("en-US", {
-                      weekday: "short",
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                  
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className="text-[10px] text-slate-400 font-medium">
-                      By {request.createdByName || "Staff"}
+              <Link
+                href={`/designer/requests/${request.date}`}
+                className="flex-1 p-4 flex items-center justify-between gap-4 text-left transition-all hover:bg-teal-50/20 cursor-pointer border-none bg-transparent"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-teal-50/70 text-teal-600 shrink-0">
+                    <Calendar className="h-5 w-5" />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-bold text-slate-800">
+                      {new Date(request.date).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
                     </span>
-                    <span className="text-[10px] text-slate-450 font-semibold bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">
-                      {request.doctorCount || 0} Doctors
-                    </span>
-                    {/* Status Badge */}
-                    <span
-                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                        request.status === "completed"
-                          ? "bg-teal-100/50 text-teal-700"
-                          : request.status === "processing"
-                          ? "bg-blue-50 text-blue-700 border border-blue-100"
-                          : request.status === "submitted"
-                          ? "bg-amber-50 text-amber-700 border border-amber-100"
-                          : "bg-slate-50 text-slate-500"
-                      }`}
-                    >
-                      {request.status}
-                    </span>
+                    
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        By {request.createdByName || "Staff"}
+                      </span>
+                      <span className="text-[10px] text-slate-450 font-semibold bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">
+                        {request.doctorCount || 0} Doctors
+                      </span>
+                      {/* Status Badge */}
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                          request.status === "completed"
+                            ? "bg-teal-100/50 text-teal-700"
+                            : request.status === "processing"
+                            ? "bg-blue-50 text-blue-700 border border-blue-100"
+                            : request.status === "submitted"
+                            ? "bg-amber-50 text-amber-700 border border-amber-100"
+                            : "bg-slate-50 text-slate-500"
+                        }`}
+                      >
+                        {request.status}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+                <ChevronRight className="h-5 w-5 text-slate-400 shrink-0" />
+              </Link>
 
-              <ChevronRight className="h-5 w-5 text-slate-400 shrink-0" />
-            </Link>
+              {/* Delete Button */}
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.preventDefault();
+                  if (window.confirm(`Are you sure you want to delete the schedule request for ${request.date}? This action cannot be undone.`)) {
+                    try {
+                      setLoading(true);
+                      await deletePosterRequest(request.date);
+                      await loadRequests();
+                    } catch (err) {
+                      console.error("Failed to delete request:", err);
+                      alert("Failed to delete request. Please try again.");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }
+                }}
+                className="p-4 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border-l border-slate-100 shrink-0 self-stretch flex items-center justify-center cursor-pointer border-none bg-transparent w-14"
+                title="Delete Request"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            </div>
           ))}
         </div>
       )}

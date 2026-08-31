@@ -212,7 +212,6 @@ export default function DepartmentsPage() {
                 <div className="flex-1 flex flex-col gap-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-slate-900">{dept.nameEnglish}</span>
-                    <span className="text-[9px] font-semibold text-slate-400">Order: {dept.displayOrder}</span>
                     <span
                       className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                         dept.isActive
@@ -333,48 +332,32 @@ export default function DepartmentsPage() {
               </div>
 
               {/* Display Order & Active Toggle */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label htmlFor="order" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Display Order
-                  </label>
-                  <input
-                    id="order"
-                    type="number"
-                    min="1"
-                    value={displayOrder}
-                    onChange={(e) => setDisplayOrder(parseInt(e.target.value, 10))}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-sm text-slate-900 bg-white h-11"
-                    required
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Active Status
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setIsActive(!isActive)}
-                    className={`w-full font-semibold text-sm rounded-xl py-2.5 transition-colors border h-11 cursor-pointer flex items-center justify-center gap-1.5 ${
-                      isActive
-                        ? "bg-teal-50 border-teal-150 text-teal-700"
-                        : "bg-red-50 border-red-150 text-red-750"
-                    }`}
-                  >
-                    {isActive ? (
-                      <>
-                        <CheckCircle2 className="h-4.5 w-4.5" />
-                        <span>Active</span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle className="h-4.5 w-4.5" />
-                        <span>Inactive</span>
-                      </>
-                    )}
-                  </button>
-                </div>
+              {/* Active Status */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Active Status
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsActive(!isActive)}
+                  className={`w-full font-semibold text-sm rounded-xl py-2.5 transition-colors border h-11 cursor-pointer flex items-center justify-center gap-1.5 ${
+                    isActive
+                      ? "bg-teal-50 border-teal-150 text-teal-700"
+                      : "bg-red-50 border-red-150 text-red-755"
+                  }`}
+                >
+                  {isActive ? (
+                    <>
+                      <CheckCircle2 className="h-4.5 w-4.5" />
+                      <span>Active</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-4.5 w-4.5" />
+                      <span>Inactive</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Actions */}

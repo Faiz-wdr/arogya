@@ -49,7 +49,7 @@ export function generatePosterHtml(
   const groupedDepts: { [key: string]: any[] } = {};
   items.forEach((item) => {
     const deptName = item.departmentNameMalayalamMVM || "Other";
-    if (showPhysiotherapy === false && (deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³")) {
+    if (showPhysiotherapy === false && (deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³" || deptName === "^nknbmt¯d¸n & dnlm_nentäj³")) {
       return; // Skip Physiotherapy if toggled off
     }
     if (!groupedDepts[deptName]) {
@@ -97,7 +97,7 @@ export function generatePosterHtml(
   const rowsHtml = departmentKeys
     .map((deptName) => {
       const deptItems = groupedDepts[deptName];
-      const isPhysio = deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³";
+      const isPhysio = deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³" || deptName === "^nknbmt¯d¸n & dnlm_nentäj³";
 
       if (isPhysio) {
         // Special full-width layout for fixed Physiotherapy

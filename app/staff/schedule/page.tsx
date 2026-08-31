@@ -15,7 +15,7 @@ import {
 } from "@/lib/services/db";
 import ScheduleItemCard from "@/components/ScheduleItemCard";
 import AddDoctorModal from "@/components/AddDoctorModal";
-import { Calendar, Plus, Save, CheckCircle, Activity, AlertCircle, X, ArrowUp, ArrowDown, Edit2, Trash2 } from "lucide-react";
+import { Calendar, Plus, Save, CheckCircle, Activity, AlertCircle, X, ArrowUp, ArrowDown, Edit2, Trash2, GripVertical, Copy, Check } from "lucide-react";
 import { parseSchedule } from "@/lib/utils/scheduleParser";
 
 function ScheduleContent() {
@@ -48,6 +48,32 @@ function ScheduleContent() {
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [copiedScheduleUnicode, setCopiedScheduleUnicode] = useState(false);
+
+  const handleCopyAllUnicode = () => {
+    const dateFormatted = new Date(selectedDate).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+
+    const header = `Date: ${dateFormatted}\n\n`;
+
+    const blocks = joinedItems.map((item) => {
+      const isFixed = item.itemType === "fixed_service";
+      const qual = item.doctorQualificationMalayalamUnicode || item.doctorQualificationEnglish || "";
+      return isFixed
+        ? `${item.departmentNameMalayalamUnicode}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`
+        : `${item.departmentNameMalayalamUnicode}\n${item.doctorNameMalayalamUnicode || item.doctorNameEnglish}\n${qual}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+    });
+
+    const fullText = header + blocks.join("\n\n");
+    navigator.clipboard.writeText(fullText);
+    setCopiedScheduleUnicode(true);
+    setTimeout(() => setCopiedScheduleUnicode(false), 2000);
+  };
   const [showPhysiotherapy, setShowPhysiotherapy] = useState<boolean>(true);
 
   // Phase 4 Bulk Import States
@@ -230,28 +256,50 @@ function ScheduleContent() {
     setScheduleItems(updated);
   };
 
-  // Handle Reordering
-  const moveItem = (index: number, direction: "up" | "down") => {
-    const newItems = [...scheduleItems];
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
+  // Reordering groups via Drag & Drop
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
 
-    if (
-      targetIndex >= 0 &&
-      targetIndex < newItems.length &&
-      newItems[index].itemType === "doctor" &&
-      newItems[targetIndex].itemType === "doctor"
-    ) {
-      const temp = newItems[index];
-      newItems[index] = newItems[targetIndex];
-      newItems[targetIndex] = temp;
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+  };
 
-      // Update display orders
-      newItems.forEach((item, idx) => {
-        item.displayOrder = idx;
+  const handleDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === index) return;
+
+    const draggable = groupedDeps.filter(g => !g.isFixed);
+    const fixed = groupedDeps.filter(g => g.isFixed);
+
+    if (draggedIdx >= draggable.length || index >= draggable.length) return;
+
+    const draggedGroup = draggable[draggedIdx];
+    draggable.splice(draggedIdx, 1);
+    draggable.splice(index, 0, draggedGroup);
+
+    // Reconstruct flat scheduleItems
+    const newScheduleItems: ScheduleItem[] = [];
+    [...draggable, ...fixed].forEach((g) => {
+      g.items.forEach((item) => {
+        const orig = scheduleItems.find(si => si.id === item.origId || si.id === item.id);
+        if (orig) {
+          newScheduleItems.push(orig);
+        }
       });
+    });
 
-      setScheduleItems(newItems);
-    }
+    newScheduleItems.forEach((item, idx) => {
+      item.displayOrder = idx;
+    });
+
+    setScheduleItems(newScheduleItems);
+    setDraggedIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
   };
 
   // Submit Flow
@@ -315,6 +363,34 @@ function ScheduleContent() {
         departmentNameEnglish: dept ? dept.nameEnglish : (item.departmentNameEnglish || "Unknown Department"),
         departmentNameMalayalamUnicode: dept ? dept.nameMalayalamUnicode : (item.departmentNameMalayalamUnicode || "Unknown Department"),
       };
+    }
+  });
+
+  // Group items by department
+  const groupedDeps: {
+    departmentId: string;
+    departmentNameMalayalamUnicode: string;
+    departmentNameEnglish: string;
+    isFixed: boolean;
+    items: any[];
+  }[] = [];
+
+  joinedItems.forEach((item) => {
+    const isFixed = item.itemType === "fixed_service";
+    const existingGroup = groupedDeps.find(
+      (g) => g.departmentId === item.departmentId && g.isFixed === isFixed
+    );
+
+    if (existingGroup) {
+      existingGroup.items.push({ ...item, origId: item.id });
+    } else {
+      groupedDeps.push({
+        departmentId: item.departmentId,
+        departmentNameMalayalamUnicode: item.departmentNameMalayalamUnicode || item.departmentNameEnglish || "Unknown Department",
+        departmentNameEnglish: item.departmentNameEnglish || "Unknown Department",
+        isFixed,
+        items: [{ ...item, origId: item.id }],
+      });
     }
   });
 
@@ -550,14 +626,13 @@ function ScheduleContent() {
       <div className="flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Availability Planner</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Manage daily poster schedules</p>
+            <h2 className="text-xl font-bold text-slate-900">Daily Poster Manager</h2>
           </div>
 
           <span
             className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${status === "submitted"
-                ? "bg-teal-500/10 text-teal-600 border border-teal-500/20"
-                : "bg-teal-50 text-teal-600 border border-teal-100/30"
+              ? "bg-teal-500/10 text-teal-600 border border-teal-500/20"
+              : "bg-teal-50 text-teal-600 border border-teal-100/30"
               }`}
           >
             {status}
@@ -592,10 +667,10 @@ function ScheduleContent() {
                 <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                   <div className="flex items-center gap-2">
                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${item.isUnrecognized
-                        ? "bg-red-150 text-red-700 border border-red-200"
-                        : item.isUnknownDoctor
-                          ? "bg-amber-100 text-amber-800 border border-amber-200"
-                          : "bg-emerald-100/80 text-emerald-800"
+                      ? "bg-red-150 text-red-700 border border-red-200"
+                      : item.isUnknownDoctor
+                        ? "bg-amber-100 text-amber-800 border border-amber-200"
+                        : "bg-emerald-100/80 text-emerald-800"
                       }`}>
                       {item.isUnrecognized
                         ? "Unrecognized Line"
@@ -833,8 +908,8 @@ function ScheduleContent() {
                         }}
                         placeholder={item.isUnknownDoctor ? "e.g. MBBS, MD" : "Qualification from master data"}
                         className={`w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold h-10 focus:outline-none ${item.isUnknownDoctor
-                            ? "bg-white focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-800"
-                            : "bg-teal-50/10 text-teal-700/70"
+                          ? "bg-white focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-800"
+                          : "bg-teal-50/10 text-teal-700/70"
                           }`}
                       />
                     </div>
@@ -997,9 +1072,33 @@ function ScheduleContent() {
 
           {/* Schedule Items List */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">
-              Doctors Availability List
-            </h3>
+            <div className="flex justify-between items-center px-1">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                Doctors Availability List
+              </h3>
+
+              <button
+                type="button"
+                onClick={handleCopyAllUnicode}
+                className={`p-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${copiedScheduleUnicode
+                    ? "bg-teal-50 border-teal-100 text-teal-600"
+                    : "bg-white border-[#D9D9D9] text-slate-600 hover:bg-slate-50"
+                  }`}
+                title="Copy all schedule content in Unicode"
+              >
+                {copiedScheduleUnicode ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" />
+                    <span>Copy Schedule</span>
+                  </>
+                )}
+              </button>
+            </div>
 
             {loading ? (
               <div className="bg-white border border-slate-100 rounded-2xl py-12 flex flex-col items-center justify-center gap-2">
@@ -1018,131 +1117,141 @@ function ScheduleContent() {
                   </p>
                 </div>
               </div>
-            ) : (() => {
-              // Group adjacent items by department for the layout
-              const groupedDeps: {
-                departmentId: string;
-                departmentNameMalayalamUnicode: string;
-                departmentNameEnglish: string;
-                isFixed: boolean;
-                items: any[];
-              }[] = [];
-
-              joinedItems.forEach((item) => {
-                const isFixed = item.itemType === "fixed_service";
-                const lastGroup = groupedDeps[groupedDeps.length - 1];
-
-                if (lastGroup && lastGroup.departmentId === item.departmentId && lastGroup.isFixed === isFixed) {
-                  lastGroup.items.push(item);
-                } else {
-                  groupedDeps.push({
-                    departmentId: item.departmentId,
-                    departmentNameMalayalamUnicode: item.departmentNameMalayalamUnicode || item.departmentNameEnglish || "Unknown Department",
-                    departmentNameEnglish: item.departmentNameEnglish || "Unknown Department",
-                    isFixed,
-                    items: [item],
-                  });
-                }
-              });
-
-              return (
-                <div className="flex flex-col gap-4">
-                  {groupedDeps.map((group, groupIdx) => {
-                    if (group.isFixed) {
-                      return null;
-                    }
-
+            ) : (
+              <div className="flex flex-col gap-4">
+                {/* 1. Draggable/reorderable groups loop */}
+                {groupedDeps
+                  .filter((g) => !g.isFixed)
+                  .map((group, groupIdx) => {
                     return (
-                      <div key={groupIdx} className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col gap-3.5 shadow-xs animate-fadeIn">
-                        {/* Department Heading */}
-                        <div className="border-b border-slate-100/50 pb-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            {group.departmentNameMalayalamUnicode}
-                          </span>
-                        </div>
+                      <div
+                        key={group.departmentId + "_doc"}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, groupIdx)}
+                        onDragOver={(e) => handleDragOver(e, groupIdx)}
+                        onDragEnd={handleDragEnd}
+                        onDrop={(e) => handleDrop(e, groupIdx)}
+                        className={`w-full bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 ${draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
+                          }`}
+                      >
+                        {group.items.map((item, docIdx) => {
+                          return (
+                            <div key={item.id} className="flex flex-col bg-white overflow-hidden">
+                              {/* Teal Banner */}
+                              <div className="bg-[#029688] p-4 flex justify-between items-start text-white gap-4">
+                                <div className="flex flex-col gap-1 min-w-0">
+                                  {/* Department Name Badge - ONLY for the first doctor in the department */}
+                                  {docIdx === 0 && (
+                                    <div>
+                                      <span className="inline-block bg-white text-[#029688] text-[9.5px] font-bold px-2.5 py-0.5 rounded-full mb-1">
+                                        {group.departmentNameMalayalamUnicode || group.departmentNameEnglish}
+                                      </span>
+                                    </div>
+                                  )}
 
-                        {/* Doctors List */}
-                        <div className="flex flex-col gap-4">
-                          {group.items.map((item, idxInGroup) => {
-                            const globalIdx = item.originalIdx;
-                            const hasPrevDoctor = globalIdx > 0 && joinedItems[globalIdx - 1].itemType === "doctor";
-                            const hasNextDoctor = globalIdx < joinedItems.length - 1 && joinedItems[globalIdx + 1].itemType === "doctor";
-
-                            return (
-                              <div
-                                key={item.id}
-                                className={`flex justify-between items-center gap-3 ${idxInGroup > 0 ? "border-t border-slate-100/50 pt-4" : ""
-                                  }`}
-                              >
-                                <div className="flex-1 flex flex-col gap-1">
-                                  <h4 className="font-bold text-slate-900 text-sm">
+                                  {/* Doctor Name */}
+                                  <h4 className="font-bold text-sm leading-tight mt-1 truncate">
                                     {item.doctorNameMalayalamUnicode || item.doctorNameEnglish}
                                   </h4>
-                                  <p className="text-xs text-slate-500 font-medium">
-                                    {item.doctorQualificationEnglish}
-                                  </p>
-                                  <div className="text-xs font-bold text-teal-600 mt-1">
-                                    {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
-                                  </div>
+
+                                  {/* Doctor Qualification */}
+                                  {item.doctorQualificationEnglish && (
+                                    <span className="text-[#b2dfdb] text-xs font-semibold">
+                                      {item.doctorQualificationEnglish}
+                                    </span>
+                                  )}
                                 </div>
 
-                                {/* Controls */}
-                                <div className="flex items-center gap-1 shrink-0">
-                                  {/* Reordering Controls */}
-                                  <div className="flex flex-col gap-1 border-r border-slate-100 pr-2 mr-1">
-                                    <button
-                                      type="button"
-                                      disabled={!hasPrevDoctor}
-                                      onClick={hasPrevDoctor ? () => moveItem(globalIdx, "up") : undefined}
-                                      className="p-1.5 rounded-lg border border-slate-100 text-slate-400 hover:bg-teal-50/30 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
-                                      title="Move Up"
-                                    >
-                                      <ArrowUp className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={!hasNextDoctor}
-                                      onClick={hasNextDoctor ? () => moveItem(globalIdx, "down") : undefined}
-                                      className="p-1.5 rounded-lg border border-slate-100 text-slate-400 hover:bg-teal-50/30 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
-                                      title="Move Down"
-                                    >
-                                      <ArrowDown className="h-4 w-4" />
-                                    </button>
-                                  </div>
-
-                                  {/* Action Controls */}
-                                  <div className="flex gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setEditingItem(item);
-                                        setIsAddModalOpen(true);
-                                      }}
-                                      className="p-2.5 rounded-xl border border-slate-100 text-slate-600 hover:bg-teal-50/30 transition-colors cursor-pointer"
-                                      title="Edit Doctor"
-                                    >
-                                      <Edit2 className="h-4 w-4" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteDoctor(item.id)}
-                                      className="p-2.5 rounded-xl border border-red-50 text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                                      title="Delete Doctor"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </button>
-                                  </div>
+                                {/* Actions */}
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingItem(item);
+                                      setIsAddModalOpen(true);
+                                    }}
+                                    className="p-2 rounded-xl bg-white text-teal-600 hover:bg-[#e0f2f1] transition-all cursor-pointer h-8 w-8 flex items-center justify-center border-none shadow-sm"
+                                    title="Edit Doctor"
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDoctor(item.id)}
+                                    className="p-2 rounded-xl bg-white text-red-500 hover:bg-red-50 transition-all cursor-pointer h-8 w-8 flex items-center justify-center border-none shadow-sm"
+                                    title="Delete Doctor"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
+
+                              {/* White Bottom Timing Block */}
+                              <div className="p-3 bg-white flex items-center justify-between text-xs border-t border-slate-50">
+                                <div className="text-[#029688] font-bold">
+                                  {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
+                                </div>
+
+                                {docIdx === group.items.length - 1 && (
+                                  <div className="text-[#999999] flex items-center gap-1">
+                                    <GripVertical className="h-4 w-4 cursor-grab" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
-                </div>
-              );
-            })()}
+
+                {/* 2. Static Fixed groups loop (Physiotherapy) */}
+                {groupedDeps
+                  .filter((g) => g.isFixed)
+                  .map((group) => {
+                    if (!showPhysiotherapy) return null;
+
+                    return (
+                      <div
+                        key={group.departmentId + "_fixed"}
+                        className="w-full bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-default"
+                      >
+                        {group.items.map((item, docIdx) => {
+                          return (
+                            <div key={item.id} className="flex flex-col bg-white overflow-hidden">
+                              {/* Teal Banner */}
+                              <div className="bg-[#029688] p-4 flex justify-between items-start text-white gap-4">
+                                <div className="flex flex-col gap-1 min-w-0">
+                                  {/* Department Name Badge */}
+                                  {docIdx === 0 && (
+                                    <div>
+                                      <span className="inline-block bg-white text-[#029688] text-[9.5px] font-bold px-2.5 py-0.5 rounded-full mb-1">
+                                        {group.departmentNameMalayalamUnicode || group.departmentNameEnglish}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Service Name */}
+                                  <h4 className="font-bold text-sm leading-tight mt-1 truncate">
+                                    Physiotherapy & Rehabilitation Outpatient
+                                  </h4>
+                                </div>
+                              </div>
+
+                              {/* White Bottom Timing Block */}
+                              <div className="p-3 bg-white flex items-center justify-between text-xs border-t border-slate-50">
+                                <div className="text-[#029688] font-bold">
+                                  {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
 
           {/* Action Footer Bar */}
@@ -1351,55 +1460,28 @@ function ScheduleContent() {
               <button
                 type="button"
                 onClick={() => {
+                  const parsedItemsToLoad = convertParsedToScheduleItems(duplicateCheck.parsedItems);
+                  const day = getDayOfWeek(duplicateCheck.date);
+                  if (day !== 0) {
+                    parsedItemsToLoad.push({
+                      id: "fixed_physio",
+                      doctorId: null,
+                      departmentId: "dept_physiotherapy",
+                      startTime: "09:00",
+                      endTime: "17:00",
+                      displayOrder: parsedItemsToLoad.length,
+                      itemType: "fixed_service",
+                    });
+                  }
+                  setScheduleItems(parsedItemsToLoad);
                   setSelectedDate(duplicateCheck.date);
+                  setPastedText("");
                   setDuplicateCheck(null);
                 }}
-                className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
               >
-                Review Existing Schedule
+                Update It
               </button>
-
-              {(duplicateCheck.existingStatus === "draft" || duplicateCheck.existingStatus === "submitted") ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const parsedItemsToLoad = convertParsedToScheduleItems(duplicateCheck.parsedItems);
-                      const day = getDayOfWeek(duplicateCheck.date);
-                      if (day !== 0) {
-                        parsedItemsToLoad.push({
-                          id: "fixed_physio",
-                          doctorId: null,
-                          departmentId: "dept_physiotherapy",
-                          startTime: "09:00",
-                          endTime: "17:00",
-                          displayOrder: parsedItemsToLoad.length,
-                          itemType: "fixed_service",
-                        });
-                      }
-                      setScheduleItems(parsedItemsToLoad);
-                      setSelectedDate(duplicateCheck.date);
-                      setPastedText("");
-                      setDuplicateCheck(null);
-                    }}
-                    className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
-                  >
-                    Replace Existing Draft
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleMergeExisting}
-                    className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
-                  >
-                    Merge with Existing Draft
-                  </button>
-                </>
-              ) : (
-                <div className="p-3 bg-red-50 border border-red-100 text-[10px] text-red-700 font-semibold rounded-xl text-left leading-relaxed">
-                  This schedule is currently being processed or completed and cannot be modified.
-                </div>
-              )}
 
               <button
                 type="button"

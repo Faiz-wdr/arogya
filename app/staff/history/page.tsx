@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { fetchPosterRequestsHistory, PosterRequest } from "@/lib/services/db";
-import { Calendar, ChevronRight, Activity, Clock, Users } from "lucide-react";
+import { fetchPosterRequestsHistory, PosterRequest, deletePosterRequest } from "@/lib/services/db";
+import { Calendar, ChevronRight, Activity, Clock, Users, Trash2 } from "lucide-react";
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -55,49 +55,76 @@ export default function HistoryPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {history.map((request) => (
-            <button
+            <div
               key={request.date}
-              type="button"
-              onClick={() => handleOpenDate(request.date)}
-              className="bg-white hover:bg-teal-50/20 border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 text-left transition-all active:scale-[0.99] cursor-pointer shadow-xs"
+              className="bg-white border border-slate-100 rounded-2xl flex items-center justify-between overflow-hidden shadow-xs hover:shadow-sm transition-all"
             >
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-teal-50/70 text-teal-600 shrink-0">
-                  <Calendar className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-bold text-slate-800">
-                    {new Date(request.date).toLocaleDateString("en-US", {
-                      weekday: "short",
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                  
-                  <div className="flex items-center gap-2 mt-1">
-                    {/* Doctor Count Badge */}
-                    <span className="text-[10px] text-teal-700 flex items-center gap-1 font-medium bg-teal-50/30 border border-teal-100/30 px-2 py-0.5 rounded-md">
-                      <Users className="h-3 w-3 text-teal-500" />
-                      <span>{request.doctorCount || 0} Doctors</span>
+              <button
+                type="button"
+                onClick={() => handleOpenDate(request.date)}
+                className="flex-1 p-4 flex items-center justify-between gap-4 text-left transition-all hover:bg-teal-50/20 cursor-pointer border-none bg-transparent"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-teal-50/70 text-teal-600 shrink-0">
+                    <Calendar className="h-5 w-5" />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-bold text-slate-800">
+                      {new Date(request.date).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })}
                     </span>
                     
-                    {/* Status Badge */}
-                    <span
-                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
-                        request.status === "submitted"
-                          ? "bg-teal-50 border border-teal-100 text-teal-700"
-                          : "bg-teal-50/20 border border-teal-100/30 text-teal-700"
-                      }`}
-                    >
-                      {request.status}
-                    </span>
+                    <div className="flex items-center gap-2 mt-1">
+                      {/* Doctor Count Badge */}
+                      <span className="text-[10px] text-teal-700 flex items-center gap-1 font-medium bg-teal-50/30 border border-teal-100/30 px-2 py-0.5 rounded-md">
+                        <Users className="h-3 w-3 text-teal-500" />
+                        <span>{request.doctorCount || 0} Doctors</span>
+                      </span>
+                      
+                      {/* Status Badge */}
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider ${
+                          request.status === "submitted"
+                            ? "bg-teal-50 border border-teal-100 text-teal-700"
+                            : "bg-teal-50/20 border border-teal-100/30 text-teal-700"
+                        }`}
+                      >
+                        {request.status}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
+                <ChevronRight className="h-5 w-5 text-slate-400 shrink-0" />
+              </button>
 
-              <ChevronRight className="h-5 w-5 text-slate-400 shrink-0" />
-            </button>
+              {/* Delete Button */}
+              <button
+                type="button"
+                onClick={async () => {
+                  if (window.confirm(`Are you sure you want to delete the schedule request for ${request.date}? This action cannot be undone.`)) {
+                    try {
+                      setLoading(true);
+                      await deletePosterRequest(request.date);
+                      const data = await fetchPosterRequestsHistory();
+                      setHistory(data);
+                    } catch (err) {
+                      console.error("Failed to delete request:", err);
+                      alert("Failed to delete request. Please try again.");
+                    } finally {
+                      setLoading(false);
+                    }
+                  }
+                }}
+                className="p-4 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border-l border-slate-100 shrink-0 self-stretch flex items-center justify-center cursor-pointer border-none bg-transparent w-14"
+                title="Delete Request"
+              >
+                <Trash2 className="h-5 w-5" />
+              </button>
+            </div>
           ))}
         </div>
       )}

@@ -45,6 +45,7 @@ import {
   RefreshCw,
   X,
   AlertTriangle,
+  GripVertical,
   Image as ImageIcon
 } from "lucide-react";
 
@@ -116,6 +117,8 @@ function RequestDetailsContent() {
     parsedDate: string | null;
     parsedItems: any[];
   } | null>(null);
+
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
   // Load request details and master data
   const loadData = async () => {
@@ -195,6 +198,36 @@ function RequestDetailsContent() {
         departmentNameMalayalamUnicode: dept ? dept.nameMalayalamUnicode : (item.departmentNameMalayalamUnicode || ""),
         departmentNameMalayalamMVM: dept ? dept.nameMalayalamMVM : (item.departmentNameMalayalamMVM || ""),
       };
+    }
+  });
+
+  // Group items by department
+  const groupedDeps: {
+    departmentId: string;
+    departmentNameMalayalamUnicode: string;
+    departmentNameEnglish: string;
+    departmentNameMalayalamMVM: string;
+    isFixed: boolean;
+    items: any[];
+  }[] = [];
+
+  joinedItems.forEach((item) => {
+    const isFixed = item.itemType === "fixed_service";
+    const existingGroup = groupedDeps.find(
+      (g) => g.departmentId === item.departmentId && g.isFixed === isFixed
+    );
+
+    if (existingGroup) {
+      existingGroup.items.push(item);
+    } else {
+      groupedDeps.push({
+        departmentId: item.departmentId,
+        departmentNameMalayalamUnicode: item.departmentNameMalayalamUnicode || item.departmentNameEnglish || "Unknown Department",
+        departmentNameEnglish: item.departmentNameEnglish || "Unknown Department",
+        departmentNameMalayalamMVM: item.departmentNameMalayalamMVM || "",
+        isFixed,
+        items: [item],
+      });
     }
   });
 
@@ -374,22 +407,80 @@ function RequestDetailsContent() {
     }
   };
 
-  // Handle Reordering
-  const moveItem = (index: number, direction: "up" | "down") => {
-    const newItems = [...scheduleItems];
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
+  // Reordering groups via Drag & Drop
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
 
-    if (
-      targetIndex >= 0 &&
-      targetIndex < newItems.length &&
-      newItems[index].itemType === "doctor" &&
-      newItems[targetIndex].itemType === "doctor"
-    ) {
-      const temp = newItems[index];
-      newItems[index] = newItems[targetIndex];
-      newItems[targetIndex] = temp;
-      newItems.forEach((item, idx) => { item.displayOrder = idx; });
-      setScheduleItems(newItems);
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === index) return;
+
+    const draggable = groupedDeps.filter(g => !g.isFixed);
+    const fixed = groupedDeps.filter(g => g.isFixed);
+
+    if (draggedIdx >= draggable.length || index >= draggable.length) return;
+
+    const draggedGroup = draggable[draggedIdx];
+    draggable.splice(draggedIdx, 1);
+    draggable.splice(index, 0, draggedGroup);
+
+    // Reconstruct flat scheduleItems
+    const newScheduleItems: ScheduleItem[] = [];
+    [...draggable, ...fixed].forEach((g) => {
+      g.items.forEach((item) => {
+        const orig = scheduleItems.find(si => si.id === item.id);
+        if (orig) {
+          newScheduleItems.push(orig);
+        }
+      });
+    });
+
+    newScheduleItems.forEach((item, idx) => {
+      item.displayOrder = idx;
+    });
+
+    setScheduleItems(newScheduleItems);
+    setIsPosterOutdated(true);
+    setDraggedIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+  };
+
+  // Reordering doctors within the same department card
+  const moveDoctorWithinDept = (groupIndex: number, doctorIndex: number, direction: "up" | "down") => {
+    const groups = [...groupedDeps];
+    const group = groups[groupIndex];
+    const targetIndex = direction === "up" ? doctorIndex - 1 : doctorIndex + 1;
+
+    if (targetIndex >= 0 && targetIndex < group.items.length) {
+      const temp = group.items[doctorIndex];
+      group.items[doctorIndex] = group.items[targetIndex];
+      group.items[targetIndex] = temp;
+
+      // Reconstruct flat scheduleItems
+      const newScheduleItems: ScheduleItem[] = [];
+      groups.forEach((g) => {
+        g.items.forEach((item) => {
+          const orig = scheduleItems.find(si => si.id === item.id);
+          if (orig) {
+            newScheduleItems.push(orig);
+          }
+        });
+      });
+
+      newScheduleItems.forEach((item, idx) => {
+        item.displayOrder = idx;
+      });
+
+      setScheduleItems(newScheduleItems);
       setIsPosterOutdated(true);
     }
   };
@@ -824,288 +915,225 @@ function RequestDetailsContent() {
                   </div>
                 </div>
 
-                {(() => {
-                  // Group adjacent items by department for the layout
-                  const groupedDeps: {
-                    departmentId: string;
-                    departmentNameMalayalamUnicode: string;
-                    departmentNameEnglish: string;
-                    departmentNameMalayalamMVM: string;
-                    isFixed: boolean;
-                    items: any[];
-                  }[] = [];
-
-                  joinedItems.forEach((item) => {
-                    const isFixed = item.itemType === "fixed_service";
-                    const lastGroup = groupedDeps[groupedDeps.length - 1];
-                    
-                    if (lastGroup && lastGroup.departmentId === item.departmentId && lastGroup.isFixed === isFixed) {
-                      lastGroup.items.push(item);
-                    } else {
-                      groupedDeps.push({
-                        departmentId: item.departmentId,
-                        departmentNameMalayalamUnicode: item.departmentNameMalayalamUnicode || item.departmentNameEnglish || "Unknown Department",
-                        departmentNameEnglish: item.departmentNameEnglish || "Unknown Department",
-                        departmentNameMalayalamMVM: item.departmentNameMalayalamMVM || "",
-                        isFixed,
-                        items: [item],
-                      });
-                    }
-                  });
-
-                  if (groupedDeps.length === 0) {
-                    return (
-                      <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
-                        <div className="p-3.5 rounded-full bg-teal-50/30 text-teal-600">
-                          <Activity className="h-6 w-6" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <h4 className="font-bold text-slate-800 text-sm">Schedule is Empty</h4>
-                          <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed">
-                            No items scheduled for this date.
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="flex flex-col gap-4">
-                      {groupedDeps.map((group, groupIdx) => {
-                        const isFixed = group.isFixed;
-                        
+                {joinedItems.length === 0 ? (
+                  <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
+                    <div className="p-3.5 rounded-full bg-teal-50/30 text-teal-600">
+                      <Activity className="h-6 w-6" />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <h4 className="font-bold text-slate-800 text-sm">Schedule is Empty</h4>
+                      <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed">
+                        No items scheduled for this date.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {/* 1. Draggable groups loop */}
+                    {groupedDeps
+                      .filter((g) => !g.isFixed)
+                      .map((group, groupIdx) => {
                         return (
                           <div
-                            key={groupIdx}
-                            className={`bg-white border rounded-2xl p-5 flex flex-col gap-4 shadow-xs relative overflow-hidden ${
-                              isFixed ? "border-teal-150 bg-teal-50/10" : "border-slate-100"
+                            key={group.departmentId + "_doc"}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, groupIdx)}
+                            onDragOver={(e) => handleDragOver(e, groupIdx)}
+                            onDragEnd={handleDragEnd}
+                            onDrop={(e) => handleDrop(e, groupIdx)}
+                            className={`w-full bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden shadow-xs transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md flex flex-col gap-1.5 ${
+                              draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
                             }`}
                           >
-                            {/* Department Heading */}
-                            <div className="border-b border-slate-100/50 pb-2.5 flex items-center justify-between">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                  {group.departmentNameEnglish}
-                                </span>
-                                <h4 className="font-bold text-slate-850 text-sm">
-                                  {group.departmentNameMalayalamUnicode}
-                                </h4>
-                              </div>
-                              {/* Warning: MVM missing for Department */}
-                              {!isFixed && !group.departmentNameMalayalamMVM && (
-                                <span className="px-2.5 py-1 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1.5 shrink-0">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                  MVM missing
-                                </span>
-                              )}
-                            </div>
+                            {group.items.map((item, docIdx) => {
+                              const blockMvmKey = `mvm-${item.id}`;
+                              const isMalayalam = /[\u0D00-\u0D7F]/.test(item.doctorNameMalayalamUnicode || "");
+                              const isMvmMissing = isMalayalam && !item.doctorNameMalayalamMVM;
+                              const isDeptMvmMissing = !item.departmentNameMalayalamMVM;
 
-                            {/* Doctors List */}
-                            <div className="flex flex-col gap-4">
-                              {group.items.map((item, idxInGroup) => {
-                                const globalIdx = joinedItems.findIndex(ji => ji.id === item.id);
-                                const hasPrevDoctor = globalIdx > 0 && joinedItems[globalIdx - 1].itemType === "doctor";
-                                const hasNextDoctor = globalIdx < joinedItems.length - 1 && joinedItems[globalIdx + 1].itemType === "doctor";
-                                
-                                const timeVal = `${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
-                                
-                                // Check if doctor is Malayalam but MVM name is missing
-                                const isMalayalam = /[\u0D00-\u0D7F]/.test(item.doctorNameMalayalamUnicode || "");
-                                const isMvmMissing = isMalayalam && !item.doctorNameMalayalamMVM;
+                              return (
+                                <div key={item.id} className="flex flex-col bg-white overflow-hidden">
+                                  {/* Teal Banner */}
+                                  <div className="bg-[#029688] p-4 flex justify-between items-start text-white gap-4">
+                                    <div className="flex flex-col gap-1 min-w-0">
+                                      {/* Department Name Badge - ONLY for the first doctor in the department */}
+                                      {docIdx === 0 && (
+                                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                          <span className="inline-block bg-white text-[#029688] text-[9.5px] font-bold px-2.5 py-0.5 rounded-full">
+                                            {group.departmentNameMalayalamUnicode || group.departmentNameEnglish}
+                                          </span>
 
-                                const blockUniKey = `uni-${item.id}`;
-                                const blockMvmKey = `mvm-${item.id}`;
-
-                                return (
-                                  <div
-                                    key={item.id}
-                                    className={`flex justify-between items-center gap-4 ${
-                                      idxInGroup > 0 ? "border-t border-slate-100/50 pt-4" : ""
-                                    }`}
-                                  >
-                                    <div className="flex-1 flex flex-col gap-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <h4 className="font-bold text-slate-900 text-sm">
-                                          {isFixed ? "Physiotherapy & Rehabilitation Outpatient" : (item.doctorNameMalayalamUnicode || item.doctorNameEnglish)}
+                                          {/* Department MVM Warning */}
+                                          {isDeptMvmMissing && (
+                                            <span className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-amber-400 text-amber-950 flex items-center gap-1 shrink-0">
+                                              <span className="h-1 w-1 rounded-full bg-amber-900 animate-pulse"></span>
+                                              Dept MVM missing
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                      
+                                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                                        {/* Doctor Name */}
+                                        <h4 className="font-bold text-sm leading-tight truncate">
+                                          {item.doctorNameMalayalamUnicode || item.doctorNameEnglish}
                                         </h4>
-                                        
-                                        {/* Warning: MVM missing for Doctor (but not qualification) */}
-                                        {!isFixed && isMvmMissing && (
-                                          <span className="px-2 py-0.5 text-[9px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-100 flex items-center gap-1 shrink-0">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                            MVM missing
+
+                                        {/* Doctor MVM Warning */}
+                                        {isMvmMissing && (
+                                          <span className="px-1.5 py-0.5 text-[8.5px] font-bold rounded-full bg-amber-400 text-amber-950 flex items-center gap-1 shrink-0">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-amber-900 animate-pulse"></span>
+                                            Dr. MVM missing
                                           </span>
                                         )}
                                       </div>
-                                      {!isFixed && item.doctorQualificationEnglish && (
-                                        <p className="text-xs text-slate-500 font-medium">
+                                      
+                                      {/* Doctor Qualification */}
+                                      {item.doctorQualificationEnglish && (
+                                        <span className="text-[#b2dfdb] text-xs font-semibold">
                                           {item.doctorQualificationEnglish}
-                                        </p>
-                                      )}
-                                      <div className="text-xs font-bold text-teal-600 mt-1">
-                                        {timeVal}
-                                      </div>
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      {/* Block Copy Actions */}
-                                      <div className="flex items-center gap-1 border-r border-slate-100 pr-2.5 mr-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() => copyDoctorBlock(item, "unicode", blockUniKey)}
-                                          className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all cursor-pointer h-7 ${
-                                            copiedFields[blockUniKey]
-                                              ? "bg-teal-50 border-teal-100 text-teal-700"
-                                              : "bg-white border-slate-100 hover:bg-slate-50 text-slate-650"
-                                          }`}
-                                        >
-                                          {copiedFields[blockUniKey] ? "Uni Copied" : "Copy Uni"}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => copyDoctorBlock(item, "mvm", blockMvmKey)}
-                                          className={`px-2.5 py-1 rounded-lg border text-[10px] font-bold transition-all cursor-pointer h-7 ${
-                                            copiedFields[blockMvmKey]
-                                              ? "bg-teal-50 border-teal-100 text-teal-700"
-                                              : "bg-white border-slate-100 hover:bg-slate-50 text-slate-650"
-                                          }`}
-                                        >
-                                          {copiedFields[blockMvmKey] ? "MVM Copied" : "Copy MVM"}
-                                        </button>
-                                      </div>
-
-                                      {/* Order & Edit Controls */}
-                                      {!isFixed ? (
-                                        <div className="flex items-center gap-1">
-                                          {/* Reordering */}
-                                          <div className="flex items-center gap-0.5 border-r border-slate-100 pr-2 mr-1">
-                                            <button
-                                              type="button"
-                                              disabled={!hasPrevDoctor}
-                                              onClick={() => moveItem(globalIdx, "up")}
-                                              className="p-1 rounded-lg bg-slate-50 border border-slate-100 text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-all cursor-pointer"
-                                              title="Move Up"
-                                            >
-                                              <ArrowUp className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              disabled={!hasNextDoctor}
-                                              onClick={() => moveItem(globalIdx, "down")}
-                                              className="p-1 rounded-lg bg-slate-50 border border-slate-100 text-slate-400 hover:bg-slate-100 disabled:opacity-30 transition-all cursor-pointer"
-                                              title="Move Down"
-                                            >
-                                              <ArrowDown className="h-4 w-4" />
-                                            </button>
-                                          </div>
-
-                                          {/* Modify/Delete */}
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setEditingItem(item);
-                                              setIsAddModalOpen(true);
-                                            }}
-                                            className="p-2 rounded-xl border border-slate-100 text-slate-650 hover:bg-slate-50 cursor-pointer"
-                                            title="Edit Doctor"
-                                          >
-                                            <Edit2 className="h-3.5 w-3.5" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeleteDoctor(item.id)}
-                                            className="p-2 rounded-xl border border-red-50 text-red-500 hover:bg-red-50 cursor-pointer"
-                                            title="Delete Doctor"
-                                          >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <span className="p-1.5 rounded-lg bg-teal-150/40 text-teal-600 flex items-center justify-center shrink-0">
-                                          <Lock className="h-4 w-4" />
                                         </span>
                                       )}
                                     </div>
+
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {/* Copy MVM button (only icon) */}
+                                      <button
+                                        type="button"
+                                        onClick={() => copyDoctorBlock(item, "mvm", blockMvmKey)}
+                                        className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center h-8 w-8 border-none shadow-sm ${
+                                          copiedFields[blockMvmKey]
+                                            ? "bg-[#e0f2f1] text-[#004d40]"
+                                            : "bg-white text-teal-600 hover:bg-[#e0f2f1]"
+                                        }`}
+                                        title={copiedFields[blockMvmKey] ? "MVM Copied!" : "Copy MVM"}
+                                      >
+                                        {copiedFields[blockMvmKey] ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingItem(item);
+                                          setIsAddModalOpen(true);
+                                        }}
+                                        className="p-2 rounded-xl bg-white text-teal-600 hover:bg-[#e0f2f1] transition-all cursor-pointer h-8 w-8 flex items-center justify-center border-none shadow-sm"
+                                        title="Edit Doctor"
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteDoctor(item.id)}
+                                        className="p-2 rounded-xl bg-white text-red-500 hover:bg-red-50 transition-all cursor-pointer h-8 w-8 flex items-center justify-center border-none shadow-sm"
+                                        title="Delete Doctor"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
                                   </div>
-                                );
-                              })}
-                            </div>
+
+                                  {/* White Bottom Timing Block */}
+                                  <div className="p-3 bg-white flex items-center justify-between text-xs border-t border-slate-50">
+                                    <div className="text-[#029688] font-bold">
+                                      {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
+                                    </div>
+                                    
+                                    {docIdx === group.items.length - 1 && (
+                                      <div className="text-[#999999] flex items-center gap-1">
+                                        <GripVertical className="h-4 w-4 cursor-grab" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         );
                       })}
-                    </div>
-                  );
-                })()}
+
+                    {/* 2. Static Fixed groups loop (Physiotherapy) */}
+                    {groupedDeps
+                      .filter((g) => g.isFixed)
+                      .map((group) => {
+                        if (!showPhysiotherapy) return null;
+
+                        return (
+                          <div
+                            key={group.departmentId + "_fixed"}
+                            className="w-full bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-default"
+                          >
+                            {group.items.map((item, docIdx) => {
+                              const blockMvmKey = `mvm-${item.id}`;
+                              const isDeptMvmMissing = !item.departmentNameMalayalamMVM;
+
+                              return (
+                                <div key={item.id} className="flex flex-col bg-white overflow-hidden">
+                                  {/* Teal Banner */}
+                                  <div className="bg-[#029688] p-4 flex justify-between items-start text-white gap-4">
+                                    <div className="flex flex-col gap-1 min-w-0">
+                                      {/* Department Name Badge */}
+                                      {docIdx === 0 && (
+                                        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                          <span className="inline-block bg-white text-[#029688] text-[9.5px] font-bold px-2.5 py-0.5 rounded-full">
+                                            {group.departmentNameMalayalamUnicode || group.departmentNameEnglish}
+                                          </span>
+
+                                          {/* Department MVM Warning */}
+                                          {isDeptMvmMissing && (
+                                            <span className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-amber-400 text-amber-950 flex items-center gap-1 shrink-0">
+                                              <span className="h-1 w-1 rounded-full bg-amber-900 animate-pulse"></span>
+                                              Dept MVM missing
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                      
+                                      {/* Service Name */}
+                                      <h4 className="font-bold text-sm leading-tight mt-1 truncate">
+                                        Physiotherapy & Rehabilitation Outpatient
+                                      </h4>
+                                    </div>
+
+                                    {/* Copy MVM for Physiotherapy */}
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => copyDoctorBlock(item, "mvm", blockMvmKey)}
+                                        className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center h-8 w-8 border-none shadow-sm ${
+                                          copiedFields[blockMvmKey]
+                                            ? "bg-[#e0f2f1] text-[#004d40]"
+                                            : "bg-white text-teal-600 hover:bg-[#e0f2f1]"
+                                        }`}
+                                        title={copiedFields[blockMvmKey] ? "MVM Copied!" : "Copy MVM"}
+                                      >
+                                        {copiedFields[blockMvmKey] ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* White Bottom Timing Block */}
+                                  <div className="p-3 bg-white flex items-center justify-between text-xs border-t border-slate-50">
+                                    <div className="text-[#029688] font-bold">
+                                      {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
               </div>
             </div>
 
             {/* RIGHT COLUMN: Actions, Statuses, Date Copy (Col span 4) */}
             <div className="lg:col-span-4 flex flex-col gap-5">
               
-              {/* Card 1: Workflow Action Controller */}
-              <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Request Workflow
-                </span>
-                
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs text-slate-500 font-medium">Current Status:</span>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                        status === "completed"
-                          ? "bg-teal-100/60 text-teal-800"
-                          : status === "processing"
-                          ? "bg-blue-50 text-blue-700 border border-blue-100"
-                          : status === "submitted"
-                          ? "bg-amber-50 text-amber-700 border border-amber-100"
-                          : "bg-slate-50 text-slate-500"
-                      }`}
-                    >
-                      {status}
-                    </span>
-                  </div>
-                </div>
 
-                {/* Workflow state transition actions */}
-                <div className="flex flex-col gap-2.5 mt-2">
-                  {status === "submitted" && (
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateStatus("processing")}
-                      disabled={saving}
-                      className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs py-3 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <span>Start Processing</span>
-                      <ArrowRight className="h-4 w-4" />
-                    </button>
-                  )}
-
-                  {status === "processing" && (
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateStatus("completed")}
-                      disabled={saving}
-                      className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs py-3 rounded-xl cursor-pointer transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Check className="h-4 w-4" />
-                      <span>Mark as Completed</span>
-                    </button>
-                  )}
-
-                  {status === "completed" && (
-                    <button
-                      type="button"
-                      onClick={() => setShowReopenConfirm(true)}
-                      disabled={saving}
-                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3 rounded-xl cursor-pointer transition-colors flex items-center justify-center"
-                    >
-                      Reopen Request
-                    </button>
-                  )}
-                </div>
-              </div>
 
               {/* Card 1.5: Poster Generation Settings */}
               <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
@@ -1147,65 +1175,36 @@ function RequestDetailsContent() {
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">Generating PNG...</span>
                   </div>
                 ) : generatedPoster ? (
-                  <div className="flex flex-col gap-3">
-                    {/* Thumbnail Preview */}
-                    <div 
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
                       onClick={() => {
                         setPreviewZoom(1);
                         setShowPreviewModal(true);
                       }}
-                      className="relative border border-slate-150 rounded-xl overflow-hidden group cursor-pointer w-full bg-slate-900 flex items-center justify-center h-48"
-                      style={{ aspectRatio: "4/5" }}
+                      className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 h-10 shadow-xs"
                     >
-                      <img 
-                        src={generatedPoster.downloadUrl} 
-                        alt="Poster Thumbnail" 
-                        className="w-full h-full object-contain transition-opacity duration-200 group-hover:opacity-75"
-                      />
-
-                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
-                        <span className="bg-white p-2 rounded-lg text-slate-800 shadow-lg">
-                          <Eye className="h-4.5 w-4.5" />
-                        </span>
-                      </div>
-                      <span className="absolute top-2 right-2 bg-slate-900/80 text-white text-[9px] font-bold px-2 py-0.5 rounded-full backdrop-blur-xs">
-                        v{generatedPoster.version}
-                      </span>
-                    </div>
-
-
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPreviewZoom(1);
-                          setShowPreviewModal(true);
-                        }}
-                        className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 h-10 shadow-xs"
-                      >
-                        <Eye className="h-4 w-4 text-slate-400" />
-                        <span>Preview Poster</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isDownloadingPNG || generating}
-                        onClick={handleDownloadPNG}
-                        className="w-full bg-teal-650 hover:bg-teal-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 h-10 disabled:bg-teal-400 shadow-xs"
-                      >
-                        {isDownloadingPNG ? (
-                          <>
-                            <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span>Downloading...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4" />
-                            <span>{isPosterOutdated ? "Download (Update)" : "Download Poster"}</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-
+                      <Eye className="h-4 w-4 text-slate-400" />
+                      <span>Preview Poster</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDownloadingPNG || generating}
+                      onClick={handleDownloadPNG}
+                      className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 h-10 disabled:bg-teal-400 shadow-xs"
+                    >
+                      {isDownloadingPNG ? (
+                        <>
+                          <div className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Downloading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4" />
+                          <span>{isPosterOutdated ? "Download (Update)" : "Download Poster"}</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
@@ -1254,7 +1253,7 @@ function RequestDetailsContent() {
                     onClick={() => copyToClipboard(getEnglishDateString(dateString), "date-eng")}
                     className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${
                       copiedFields["date-eng"]
-                        ? "bg-teal-50 border-teal-100 text-teal-650"
+                        ? "bg-teal-50 border-teal-100 text-teal-600"
                         : "bg-white border-slate-150 text-slate-650 hover:bg-slate-50"
                     }`}
                   >
@@ -1278,7 +1277,7 @@ function RequestDetailsContent() {
                     onClick={() => copyToClipboard(getMalayalamDateString(dateString), "date-mal")}
                     className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${
                       copiedFields["date-mal"]
-                        ? "bg-teal-50 border-teal-100 text-teal-650"
+                        ? "bg-teal-50 border-teal-100 text-teal-600"
                         : "bg-white border-slate-150 text-slate-650 hover:bg-slate-50"
                     }`}
                   >
@@ -1366,38 +1365,7 @@ function RequestDetailsContent() {
         </div>
       )}
 
-      {/* Workflow Reopen Confirmation Modal */}
-      {showReopenConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 p-6 flex flex-col items-center text-center gap-4 shadow-2xl">
-            <div className="h-12 w-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center">
-              <AlertCircle className="h-7 w-7" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <h3 className="font-bold text-slate-900 text-base">Reopen Request?</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Are you sure you want to reopen this completed request? This will revert its status back to Processing.
-              </p>
-            </div>
-            <div className="flex gap-3 w-full mt-2">
-              <button
-                type="button"
-                onClick={() => setShowReopenConfirm(false)}
-                className="flex-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold text-sm rounded-xl py-2.5 transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleUpdateStatus("processing")}
-                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-sm rounded-xl py-2.5 transition-colors cursor-pointer"
-              >
-                Confirm Reopen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Add / Edit Doctor Drawer */}
       <AddDoctorModal
@@ -1418,7 +1386,7 @@ function RequestDetailsContent() {
       {importCheck && importCheck.showDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
           <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
-            <div className="h-12 w-12 rounded-full bg-teal-50 text-teal-650 flex items-center justify-center shrink-0">
+            <div className="h-12 w-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
               <Calendar className="h-6 w-6 text-teal-600" />
             </div>
             
@@ -1442,7 +1410,7 @@ function RequestDetailsContent() {
               <button
                 type="button"
                 onClick={handleMergeSchedule}
-                className="w-full bg-teal-650 hover:bg-teal-700 text-white font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11 shadow-xs"
+                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11 shadow-xs"
               >
                 Merge with Current Schedule
               </button>
@@ -1876,7 +1844,7 @@ function RequestDetailsContent() {
                       type="button"
                       disabled={isSavingPosition}
                       onClick={handleSavePosition}
-                      className="text-[9px] text-teal-650 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
+                      className="text-[9px] text-teal-600 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
                     >
                       {positionSavedFeedback ? (
                         <>
