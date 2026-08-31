@@ -61,12 +61,18 @@ function ScheduleContent() {
 
     const header = `Date: ${dateFormatted}\n\n`;
 
-    const blocks = joinedItems.map((item) => {
-      const isFixed = item.itemType === "fixed_service";
-      const qual = item.doctorQualificationMalayalamUnicode || item.doctorQualificationEnglish || "";
-      return isFixed
-        ? `${item.departmentNameMalayalamUnicode}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`
-        : `${item.departmentNameMalayalamUnicode}\n${item.doctorNameMalayalamUnicode || item.doctorNameEnglish}\n${qual}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+    const blocks = groupedDeps.map((group) => {
+      if (group.isFixed) {
+        const item = group.items[0];
+        return `${group.departmentNameMalayalamUnicode}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+      } else {
+        const deptHeader = group.departmentNameMalayalamUnicode;
+        const docsText = group.items.map((item) => {
+          const qual = item.doctorQualificationMalayalamUnicode || item.doctorQualificationEnglish || "";
+          return `${item.doctorNameMalayalamUnicode || item.doctorNameEnglish}\n${qual}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+        }).join("\n");
+        return `${deptHeader}\n${docsText}`;
+      }
     });
 
     const fullText = header + blocks.join("\n\n");
@@ -626,7 +632,7 @@ function ScheduleContent() {
       <div className="flex flex-col gap-3">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Daily Poster Manager</h2>
+            <h2 className="text-xl font-bold text-slate-900">Daily Poster</h2>
           </div>
 
           <span
@@ -950,7 +956,7 @@ function ScheduleContent() {
                   setIsReviewing(false);
                   setSubmitError(null);
                 }}
-                className="flex-1 bg-white hover:bg-red-50 border border-slate-200 text-red-600 font-bold text-sm rounded-xl py-3.5 transition-all flex items-center justify-center gap-1 cursor-pointer h-12"
+                className="flex-1 bg-white hover:bg-red-50 border border-slate-100 text-red-600 font-bold text-sm rounded-xl py-3.5 transition-all flex items-center justify-center gap-1 cursor-pointer h-12"
               >
                 <span>Cancel</span>
               </button>
@@ -1035,7 +1041,7 @@ function ScheduleContent() {
             <textarea
               value={pastedText}
               onChange={(e) => setPastedText(e.target.value)}
-              placeholder="23/08/2026 ഞായർ&#10;&#10;ജനറൽ ഒ.പി&#10;ഡോ. മേബിൾ ജോൺ&#10;MBBS&#10;രാവിലെ 8 മണി രാത്രി 8 വരെ..."
+              placeholder="23/08/2026 ഞായർ&#10;&#10;ജനറൽ ഒ.പി&#10;ഡോ. മേബിൾ ജോൺ&#10;MBBS&#10;..."
               rows={5}
               className="w-full p-3.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-700 bg-slate-50/10 resize-y min-h-[120px]"
             />
@@ -1081,8 +1087,8 @@ function ScheduleContent() {
                 type="button"
                 onClick={handleCopyAllUnicode}
                 className={`p-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${copiedScheduleUnicode
-                    ? "bg-teal-50 border-teal-100 text-teal-600"
-                    : "bg-white border-[#D9D9D9] text-slate-600 hover:bg-slate-50"
+                  ? "bg-teal-50 border-teal-100 text-teal-600"
+                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                   }`}
                 title="Copy all schedule content in Unicode"
               >
@@ -1131,7 +1137,7 @@ function ScheduleContent() {
                         onDragOver={(e) => handleDragOver(e, groupIdx)}
                         onDragEnd={handleDragEnd}
                         onDrop={(e) => handleDrop(e, groupIdx)}
-                        className={`w-full bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 ${draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
+                        className={`w-full bg-white border border-[#d9d9d9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-all duration-200 ${draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
                           }`}
                       >
                         {group.items.map((item, docIdx) => {
@@ -1214,7 +1220,7 @@ function ScheduleContent() {
                     return (
                       <div
                         key={group.departmentId + "_fixed"}
-                        className="w-full bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-default"
+                        className="w-full bg-white border border-[#d9d9d9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-default"
                       >
                         {group.items.map((item, docIdx) => {
                           return (
@@ -1233,7 +1239,7 @@ function ScheduleContent() {
 
                                   {/* Service Name */}
                                   <h4 className="font-bold text-sm leading-tight mt-1 truncate">
-                                    Physiotherapy & Rehabilitation Outpatient
+                                    Physiotherapy & Rehabilitation
                                   </h4>
                                 </div>
                               </div>

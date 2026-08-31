@@ -6,6 +6,8 @@ import {
   fetchAllDepartments,
   saveDoctor,
   saveDepartment,
+  deleteDoctor,
+  deleteDepartment,
   clearDoctorsAndDepartments,
   Doctor,
   Department
@@ -53,6 +55,23 @@ export default function DoctorsPage() {
   const [inactiveDeptWarning, setInactiveDeptWarning] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Department Manager States
+  const [showDeptManager, setShowDeptManager] = useState(false);
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
+  const [deptNameEnglish, setDeptNameEnglish] = useState("");
+  const [deptNameMalayalamMVM, setDeptNameMalayalamMVM] = useState("");
+  const [deptDisplayOrder, setDeptDisplayOrder] = useState(1);
+  const [deptIsActive, setDeptIsActive] = useState(true);
+  const [deptFormError, setDeptFormError] = useState<string | null>(null);
+  const [deptSaving, setDeptSaving] = useState(false);
+
+  // Inline Add Department States
+  const [showInlineAddDept, setShowInlineAddDept] = useState(false);
+  const [inlineDeptNameEnglish, setInlineDeptNameEnglish] = useState("");
+  const [inlineDeptNameMalayalamMVM, setInlineDeptNameMalayalamMVM] = useState("");
+  const [inlineDeptSaving, setInlineDeptSaving] = useState(false);
+  const [inlineDeptError, setInlineDeptError] = useState<string | null>(null);
 
   // Bulk Import & Reset State
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
@@ -374,26 +393,69 @@ export default function DoctorsPage() {
     return matchesSearch && matchesDept;
   });
 
+  // Group doctors by department
+  const groupedDocs: {
+    departmentId: string;
+    departmentNameEnglish: string;
+    departmentNameMalayalamUnicode: string;
+    items: Doctor[];
+  }[] = [];
+
+  filteredDoctors.forEach((docItem) => {
+    const dept = departments.find((d) => d.id === docItem.departmentId);
+    const deptNameEng = dept ? dept.nameEnglish : "Unknown Department";
+    const deptNameMal = dept ? dept.nameMalayalamUnicode : "Unknown Department";
+    const existingGroup = groupedDocs.find((g) => g.departmentId === docItem.departmentId);
+
+    if (existingGroup) {
+      existingGroup.items.push(docItem);
+    } else {
+      groupedDocs.push({
+        departmentId: docItem.departmentId,
+        departmentNameEnglish: deptNameEng,
+        departmentNameMalayalamUnicode: deptNameMal,
+        items: [docItem],
+      });
+    }
+  });
+
   return (
     <div className="flex flex-col gap-6">
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Manage Doctors</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Edit credentials and MVM print data</p>
+          <h2 className="text-xl font-bold text-slate-900">Doctors and Departments</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Manage clinic directory, credentials, and MVM print data</p>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
-        >
-          <Plus className="h-4.5 w-4.5" />
-          <span>Add Doctor</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setDeptNameEnglish("");
+              setDeptNameMalayalamMVM("");
+              setDeptDisplayOrder(departments.length + 1);
+              setDeptIsActive(true);
+              setDeptFormError(null);
+              setShowDeptManager(true);
+            }}
+            className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors h-10"
+          >
+            <span>Manage Departments</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors h-10"
+          >
+            <Plus className="h-4.5 w-4.5" />
+            <span>Add Doctor</span>
+          </button>
+        </div>
       </div>
 
       {/* Bulk Actions Panel */}
-      <div className="bg-white border border-slate-105 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex flex-col gap-1">
           <h3 className="text-sm font-bold text-slate-800">Bulk Actions</h3>
           <p className="text-xs text-slate-500">
@@ -488,7 +550,7 @@ export default function DoctorsPage() {
           <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs text-slate-400 font-semibold mt-1">Loading doctor records...</span>
         </div>
-      ) : filteredDoctors.length === 0 ? (
+      ) : groupedDocs.length === 0 ? (
         <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
           <div className="p-3.5 rounded-full bg-teal-50/40 text-teal-600">
             <UserCheck className="h-6 w-6" />
@@ -501,67 +563,96 @@ export default function DoctorsPage() {
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {filteredDoctors.map((docItem) => {
-            const dept = departments.find((d) => d.id === docItem.departmentId);
-            const isNameMvmReady = Boolean(docItem.nameMalayalamMVM);
-            
-            return (
-              <div
-                key={docItem.id}
-                className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-xs"
-              >
-                <div className="flex-1 flex flex-col gap-1.5 min-w-0">
-                  {/* Name and Meta */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-slate-900">{docItem.nameEnglish}</span>
-                    <span className="text-[10px] font-semibold text-teal-650 bg-teal-50/50 px-2 py-0.5 rounded-full border border-teal-100/30">
-                      {dept ? dept.nameEnglish : "Unknown Department"}
-                    </span>
-                    <span
-                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                        docItem.isActive
-                          ? "bg-teal-50 text-teal-700"
-                          : "bg-red-50 text-red-700"
+        <div className="flex flex-col gap-4 animate-fadeIn">
+          {groupedDocs.map((group) => (
+            <div
+              key={group.departmentId}
+              className="w-full bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs flex flex-col p-5"
+            >
+              {/* Department Header Badge */}
+              <div className="pb-2.5 border-b border-slate-100 flex justify-between items-center mb-3.5">
+                <span className="text-xs font-bold text-[#029688] uppercase tracking-wider">
+                  {group.departmentNameMalayalamUnicode || group.departmentNameEnglish}
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  {group.items.length} {group.items.length === 1 ? "Doctor" : "Doctors"}
+                </span>
+              </div>
+
+              {/* Doctors List inside the Department Card */}
+              <div className="flex flex-col gap-3">
+                {group.items.map((docItem, docIdx) => {
+                  const isNameMvmReady = Boolean(docItem.nameMalayalamMVM);
+
+                  return (
+                    <div
+                      key={docItem.id}
+                      className={`flex items-center justify-between gap-4 py-2 ${
+                        docIdx > 0 ? "border-t border-slate-100 pt-3.5" : ""
                       }`}
                     >
-                      {docItem.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </div>
+                      {/* Left: Names & Credentials */}
+                      <div className="flex-1 flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Malayalam Unicode Name */}
+                          <span className="font-bold text-slate-800 text-sm leading-tight">
+                            {docItem.nameMalayalamUnicode || docItem.nameEnglish}
+                          </span>
+                          
+                          {/* Active Status Badge */}
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                              docItem.isActive
+                                ? "bg-teal-50 text-teal-700"
+                                : "bg-red-50 text-red-700"
+                            }`}
+                          >
+                            {docItem.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
 
-                  {/* Credentials / Details */}
-                  <div className="text-xs text-slate-550 font-medium">
-                    {docItem.qualificationEnglish}
-                  </div>
+                        {/* Qualification */}
+                        <div className="text-xs text-slate-500 font-medium">
+                          {docItem.qualificationEnglish}
+                        </div>
+                      </div>
 
-                  {/* MVM Checklist */}
-                  <div className="flex flex-col gap-1 text-[11px] mt-1 border-t border-slate-50 pt-1.5">
-                    <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                      <span className="font-semibold text-[9px] uppercase text-slate-400">Name MVM (Malayalam Preview):</span>
-                      {isNameMvmReady ? (
-                        <span className="text-slate-800 bg-teal-50/40 px-2.5 py-1 rounded text-base border border-teal-100/30" style={{ fontFamily: "MLKVShaji-Bold" }}>
-                          {docItem.nameMalayalamMVM}
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1 py-0.5 rounded flex items-center gap-0.5">
-                          <AlertCircle className="h-2.5 w-2.5" />
-                          <span>MVM Missing</span>
-                        </span>
-                      )}
+                      {/* Right: MVM Preview and Action Button */}
+                      <div className="flex items-center gap-3.5 shrink-0">
+                        {/* MVM Preview */}
+                        <div>
+                          {isNameMvmReady ? (
+                            <span 
+                              className="text-slate-800 bg-slate-50 px-2.5 py-1 rounded-lg text-base border border-slate-100 font-bold block" 
+                              style={{ fontFamily: "MLKVShaji-Bold" }}
+                              title="MVM Name Preview"
+                            >
+                              {docItem.nameMalayalamMVM}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100 flex items-center gap-1">
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              <span>MVM Missing</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Edit Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(docItem)}
+                          className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[#029688] transition-all cursor-pointer shrink-0 bg-white shadow-2xs flex items-center justify-center h-9 w-9"
+                          title="Edit Doctor"
+                        >
+                          <Edit2 className="h-4.5 w-4.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenEdit(docItem)}
-                  className="p-2.5 rounded-xl border border-slate-100 text-slate-650 hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </button>
+                  );
+                })}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
 
@@ -617,7 +708,13 @@ export default function DoctorsPage() {
                 <select
                   id="deptSelection"
                   value={departmentId}
-                  onChange={(e) => setDepartmentId(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === "add_new_department_trigger") {
+                      setShowInlineAddDept(true);
+                    } else {
+                      setDepartmentId(e.target.value);
+                    }
+                  }}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-sm text-slate-900 bg-white h-11"
                   required
                 >
@@ -629,6 +726,9 @@ export default function DoctorsPage() {
                         {dept.nameEnglish} {dept.isActive ? "" : "(Inactive)"}
                       </option>
                     ))}
+                  <option value="add_new_department_trigger" className="text-teal-600 font-bold font-semibold">
+                    + Add New Department...
+                  </option>
                 </select>
               </div>
 
@@ -716,6 +816,32 @@ export default function DoctorsPage() {
 
               {/* Form Action Buttons */}
               <div className="flex gap-3 mt-4 shrink-0 pb-2">
+                {editingDoc && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (window.confirm(`Are you sure you want to completely delete the doctor record for ${editingDoc.nameEnglish}? This action cannot be undone.`)) {
+                        try {
+                          setSaving(true);
+                          await deleteDoctor(editingDoc.id);
+                          setIsModalOpen(false);
+                          await loadData();
+                        } catch (err) {
+                          console.error("Failed to delete doctor:", err);
+                          alert("Failed to delete doctor. Please try again.");
+                        } finally {
+                          setSaving(false);
+                        }
+                      }
+                    }}
+                    className="bg-red-50 hover:bg-red-100 border border-red-150 text-red-650 font-bold text-xs rounded-xl py-3 px-4 transition-colors cursor-pointer h-11 flex items-center justify-center gap-1.5 shrink-0"
+                    title="Delete Doctor Record"
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                    <span>Delete</span>
+                  </button>
+                )}
+                
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -769,6 +895,372 @@ export default function DoctorsPage() {
                 className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11 shadow-xs"
               >
                 {saving ? "Purging..." : "Yes, Purge All"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Department Management Modal Drawer */}
+      {showDeptManager && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center p-0 sm:p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full sm:max-w-2xl bg-white rounded-t-3xl sm:rounded-2xl border border-slate-100 shadow-2xl flex flex-col max-h-[90vh] animate-scaleUp">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+              <h3 className="text-base font-bold text-slate-900">Manage Departments</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeptManager(false);
+                  setEditingDept(null);
+                  setDeptNameEnglish("");
+                  setDeptNameMalayalamMVM("");
+                  setDeptDisplayOrder(1);
+                  setDeptIsActive(true);
+                  setDeptFormError(null);
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:bg-teal-50/30 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content Body: Split into Form (Top/Left) and List (Bottom/Right) */}
+            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
+              {/* Inline Form */}
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setDeptFormError(null);
+                  setDeptSaving(true);
+                  try {
+                    const finalId = editingDept ? editingDept.id : "";
+                    await saveDepartment(finalId, {
+                      nameEnglish: deptNameEnglish,
+                      nameMalayalamUnicode: deptNameEnglish,
+                      nameMalayalamMVM: deptNameMalayalamMVM,
+                      displayOrder: editingDept ? editingDept.displayOrder : (departments.length + 1),
+                      isActive: deptIsActive,
+                    });
+                    
+                    // Reset Form
+                    setEditingDept(null);
+                    setDeptNameEnglish("");
+                    setDeptNameMalayalamMVM("");
+                    setDeptDisplayOrder(departments.length + 1);
+                    setDeptIsActive(true);
+                    
+                    // Reload Data
+                    await loadData();
+                  } catch (err) {
+                    console.error(err);
+                    setDeptFormError("Failed to save department.");
+                  } finally {
+                    setDeptSaving(false);
+                  }
+                }}
+                className="bg-slate-50/50 border border-slate-100 p-4 rounded-2xl flex flex-col gap-4 shadow-3xs"
+              >
+                <h4 className="text-xs font-bold text-[#029688] uppercase tracking-wider">
+                  {editingDept ? "Edit Department" : "Add New Department"}
+                </h4>
+
+                {deptFormError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-xs font-semibold text-red-600 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
+                    <span>{deptFormError}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Department Name */}
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="deptNameEng" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Department Name (Malayalam Unicode)
+                    </label>
+                    <input
+                      id="deptNameEng"
+                      type="text"
+                      placeholder="e.g. ജനറൽ ഒ.പി"
+                      value={deptNameEnglish}
+                      onChange={(e) => setDeptNameEnglish(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-xs text-slate-900 bg-white h-10"
+                      required
+                    />
+                  </div>
+
+                  {/* Malayalam MVM Value */}
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="deptNameMalMvm" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Malayalam MVM (Optional)
+                    </label>
+                    <input
+                      id="deptNameMalMvm"
+                      type="text"
+                      placeholder="e.g. P\\dÄ H.¸n."
+                      value={deptNameMalayalamMVM}
+                      onChange={(e) => setDeptNameMalayalamMVM(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-xs text-slate-900 bg-white h-10 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 items-end">
+                  {/* Active Toggle & Save Button */}
+                  <div className="flex gap-2.5 w-full">
+                    <button
+                      type="button"
+                      onClick={() => setDeptIsActive(!deptIsActive)}
+                      className={`flex-1 font-semibold text-xs rounded-xl py-2 transition-all border h-10 cursor-pointer flex items-center justify-center gap-1 ${
+                        deptIsActive
+                          ? "bg-teal-50 border-teal-150 text-teal-700"
+                          : "bg-red-50 border-red-150 text-red-750"
+                      }`}
+                    >
+                      {deptIsActive ? (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span>Active</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          <span>Inactive</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={deptSaving}
+                      className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-bold text-xs rounded-xl py-2 transition-all cursor-pointer h-10 flex items-center justify-center animate-fadeIn"
+                    >
+                      {deptSaving ? (
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <span>{editingDept ? "Save Changes" : "Add Dept"}</span>
+                      )}
+                    </button>
+
+                    {editingDept && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingDept(null);
+                          setDeptNameEnglish("");
+                          setDeptNameMalayalamMVM("");
+                          setDeptDisplayOrder(departments.length + 1);
+                          setDeptIsActive(true);
+                        }}
+                        className="bg-white hover:bg-slate-50 border border-slate-100 text-slate-650 font-bold text-xs rounded-xl py-2 px-3 transition-colors cursor-pointer h-10 flex items-center justify-center"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </form>
+
+              {/* Department Directory List */}
+              <div className="flex flex-col gap-2.5">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Clinic Directory List ({departments.length})
+                </h4>
+
+                <div className="flex flex-col gap-2">
+                  {departments.map((dept) => {
+                    const docCount = doctors.filter((d) => d.departmentId === dept.id).length;
+                    return (
+                      <div
+                        key={dept.id}
+                        className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-4 shadow-3xs"
+                      >
+                        <div className="flex-1 flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-slate-900">
+                              {dept.nameEnglish}
+                            </span>
+                            
+
+
+                            <span className="text-[9px] font-bold bg-slate-50 border border-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                              {docCount} {docCount === 1 ? "Doctor" : "Doctors"}
+                            </span>
+
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                                dept.isActive
+                                  ? "bg-teal-50 text-teal-700"
+                                  : "bg-red-50 text-red-700"
+                              }`}
+                            >
+                              {dept.isActive ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+
+                          {dept.nameMalayalamMVM && (
+                            <span className="text-[9.5px] text-slate-400 font-mono">
+                              MVM: {dept.nameMalayalamMVM}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingDept(dept);
+                              setDeptNameEnglish(dept.nameEnglish);
+                              setDeptNameMalayalamMVM(dept.nameMalayalamMVM || "");
+                              setDeptDisplayOrder(dept.displayOrder);
+                              setDeptIsActive(dept.isActive);
+                            }}
+                            className="p-1.5 rounded-lg border border-slate-100 text-slate-650 hover:bg-slate-50 transition-colors cursor-pointer bg-white h-8 w-8 flex items-center justify-center"
+                            title="Edit Department"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          
+                          <button
+                            type="button"
+                            disabled={dept.id === "dept_physiotherapy"}
+                            onClick={async () => {
+                              // Safeguard: Check if any doctor is assigned to this department
+                              const assignedDocs = doctors.filter((d) => d.departmentId === dept.id);
+                              if (assignedDocs.length > 0) {
+                                alert(`Cannot delete this department because it still has ${assignedDocs.length} doctor records assigned to it. Please reassign or delete those doctors first.`);
+                                return;
+                              }
+                              if (window.confirm(`Are you sure you want to completely delete the department "${dept.nameEnglish}"?`)) {
+                                try {
+                                  setDeptSaving(true);
+                                  await deleteDepartment(dept.id);
+                                  await loadData();
+                                } catch (err) {
+                                  console.error(err);
+                                  alert("Failed to delete department.");
+                                } finally {
+                                  setDeptSaving(false);
+                                }
+                              }
+                            }}
+                            className="p-1.5 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer bg-white h-8 w-8 flex items-center justify-center"
+                            title="Delete Department"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Inline Add Department Dialog Modal */}
+      {showInlineAddDept && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 p-5 flex flex-col gap-4 shadow-2xl animate-scaleUp">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-sm">Add New Department</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInlineAddDept(false);
+                  setInlineDeptNameEnglish("");
+                  setInlineDeptNameMalayalamMVM("");
+                  setInlineDeptError(null);
+                  setDepartmentId(""); // Reset select choice
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-650 transition-colors cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            {inlineDeptError && (
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-100 text-xs font-semibold text-red-650">
+                {inlineDeptError}
+              </div>
+            )}
+            
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Department Name (Malayalam Unicode)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. ജനറൽ ഒ.പി"
+                value={inlineDeptNameEnglish}
+                onChange={(e) => setInlineDeptNameEnglish(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-xs text-slate-900 bg-white h-10"
+                required
+              />
+            </div>
+            
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Malayalam MVM (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. P\\dÄ H.¸n."
+                value={inlineDeptNameMalayalamMVM}
+                onChange={(e) => setInlineDeptNameMalayalamMVM(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-xs text-slate-900 bg-white h-10 font-mono"
+              />
+            </div>
+            
+            <div className="flex gap-2.5 mt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowInlineAddDept(false);
+                  setInlineDeptNameEnglish("");
+                  setInlineDeptNameMalayalamMVM("");
+                  setInlineDeptError(null);
+                  setDepartmentId(""); // Reset select choice
+                }}
+                className="flex-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-650 font-bold text-xs rounded-xl py-2.5 transition-colors cursor-pointer h-10 flex items-center justify-center"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={inlineDeptSaving || !inlineDeptNameEnglish}
+                onClick={async () => {
+                  setInlineDeptSaving(true);
+                  setInlineDeptError(null);
+                  try {
+                    const newDeptId = await saveDepartment("", {
+                      nameEnglish: inlineDeptNameEnglish,
+                      nameMalayalamUnicode: inlineDeptNameEnglish,
+                      nameMalayalamMVM: inlineDeptNameMalayalamMVM,
+                      displayOrder: departments.length + 1,
+                      isActive: true,
+                    });
+                    
+                    // Reload departments in page data
+                    await loadData();
+                    
+                    // Automatically select the new department
+                    setDepartmentId(newDeptId);
+                    
+                    // Close inline modal
+                    setShowInlineAddDept(false);
+                    setInlineDeptNameEnglish("");
+                    setInlineDeptNameMalayalamMVM("");
+                  } catch (err: any) {
+                    console.error(err);
+                    setInlineDeptError("Failed to save department. Please try again.");
+                  } finally {
+                    setInlineDeptSaving(false);
+                  }
+                }}
+                className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-bold text-xs rounded-xl py-2.5 transition-colors cursor-pointer h-10 flex items-center justify-center"
+              >
+                {inlineDeptSaving ? "Saving..." : "Add"}
               </button>
             </div>
           </div>

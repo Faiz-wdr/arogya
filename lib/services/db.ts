@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   Timestamp,
   arrayUnion,
+  deleteDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -743,3 +744,16 @@ export async function fetchPosterSettings(): Promise<{ datePositionX: number, da
   return { datePositionX: 80, datePositionY: 80 };
 }
 
+
+
+// 18. Delete a doctor record
+export async function deleteDoctor(id: string): Promise<void> {
+  const docRef = doc(db, "doctors", id);
+  await deleteDoc(docRef);
+}
+
+// 19. Delete a department record
+export async function deleteDepartment(id: string): Promise<void> {
+  const docRef = doc(db, "departments", id);
+  await deleteDoc(docRef);
+}

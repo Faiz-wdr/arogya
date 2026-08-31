@@ -56,7 +56,7 @@ export default function DesignerDashboard() {
 
   if (loading) {
     return (
-      <div className="bg-white border border-slate-100 rounded-2xl py-24 flex flex-col items-center justify-center gap-2">
+      <div className="bg-white border border-[#D9D9D9] rounded-2xl py-24 flex flex-col items-center justify-center gap-2">
         <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
         <span className="text-xs text-slate-400 font-semibold mt-1">Loading dashboard stats...</span>
       </div>
@@ -79,7 +79,7 @@ export default function DesignerDashboard() {
       {/* Grid of Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Today's Schedule Card */}
-        <div className="bg-white border border-slate-100 p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
+        <div className="bg-white border border-[#D9D9D9] p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
           <div className="flex justify-between items-center text-teal-600">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Today's Schedule</span>
             <Calendar className="h-4.5 w-4.5" />
@@ -95,7 +95,7 @@ export default function DesignerDashboard() {
         </div>
 
         {/* Submitted Card */}
-        <div className="bg-white border border-slate-100 p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
+        <div className="bg-white border border-[#D9D9D9] p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
           <div className="flex justify-between items-center text-amber-500">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Submitted Requests</span>
             <Clock className="h-4.5 w-4.5" />
@@ -107,7 +107,7 @@ export default function DesignerDashboard() {
         </div>
 
         {/* Completed Card */}
-        <div className="bg-white border border-slate-100 p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
+        <div className="bg-white border border-[#D9D9D9] p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
           <div className="flex justify-between items-center text-teal-600">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Completed Posters</span>
             <FileCheck className="h-4.5 w-4.5" />
@@ -119,7 +119,7 @@ export default function DesignerDashboard() {
         </div>
 
         {/* Active Doctors Card */}
-        <div className="bg-white border border-slate-100 p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
+        <div className="bg-white border border-[#D9D9D9] p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
           <div className="flex justify-between items-center text-teal-600">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active Doctors</span>
             <UserCheck className="h-4.5 w-4.5" />
@@ -147,7 +147,7 @@ export default function DesignerDashboard() {
         </div>
 
         {recentRequests.length === 0 ? (
-          <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
+          <div className="bg-white border border-[#D9D9D9] rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
             <div className="p-3.5 rounded-full bg-teal-50/40 text-teal-600">
               <TrendingUp className="h-6 w-6" />
             </div>
@@ -164,7 +164,7 @@ export default function DesignerDashboard() {
               <Link
                 key={request.date}
                 href={`/designer/requests/${request.date}`}
-                className="bg-white hover:bg-teal-50/20 border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 text-left transition-all active:scale-[0.99] cursor-pointer shadow-xs"
+                className="bg-white hover:bg-teal-50/20 border border-[#D9D9D9] rounded-2xl p-4 flex items-center justify-between gap-4 text-left transition-all active:scale-[0.99] cursor-pointer shadow-xs"
               >
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 rounded-xl bg-teal-50/70 text-teal-600 shrink-0">
@@ -183,7 +183,7 @@ export default function DesignerDashboard() {
                       <span className="text-[10px] text-slate-400 font-medium">
                         By {request.createdByName || "Staff"}
                       </span>
-                      <span className="text-[10px] text-slate-400 font-semibold bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] text-slate-400 font-semibold bg-slate-50 border border-[#D9D9D9] px-1.5 py-0.5 rounded">
                         {request.doctorCount || 0} Doctors
                       </span>
                       {/* Status Badge */}

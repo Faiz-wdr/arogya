@@ -515,16 +515,29 @@ function RequestDetailsContent() {
 
   // Copy All Poster Content (All Doctors in displayOrder sequence)
   const copyAllPosterContent = (mode: "unicode" | "mvm", key: string) => {
-    const blocks = joinedItems.map((item) => {
-      const isFixed = item.itemType === "fixed_service";
-      if (mode === "unicode") {
-        return isFixed
-          ? `${item.departmentNameMalayalamUnicode}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`
-          : `${item.departmentNameMalayalamUnicode}\n${item.doctorNameMalayalamUnicode}\n${item.doctorQualificationMalayalamUnicode}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+    const blocks = groupedDeps.map((group) => {
+      if (group.isFixed) {
+        const item = group.items[0];
+        if (mode === "unicode") {
+          return `${group.departmentNameMalayalamUnicode}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+        } else {
+          return `${group.departmentNameMalayalamMVM || "MVM content missing"}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+        }
       } else {
-        return isFixed
-          ? `${item.departmentNameMalayalamMVM || "MVM content missing"}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`
-          : `${item.departmentNameMalayalamMVM || "MVM content missing"}\n${item.doctorNameMalayalamMVM || "MVM content missing"}\n${item.doctorQualificationEnglish || ""}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+        const deptHeader = mode === "unicode"
+          ? group.departmentNameMalayalamUnicode
+          : (group.departmentNameMalayalamMVM || "MVM content missing");
+        
+        const docsText = group.items.map((item) => {
+          if (mode === "unicode") {
+            const qual = item.doctorQualificationMalayalamUnicode || item.doctorQualificationEnglish || "";
+            return `${item.doctorNameMalayalamUnicode || item.doctorNameEnglish}\n${qual}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+          } else {
+            return `${item.doctorNameMalayalamMVM || "MVM content missing"}\n${item.doctorQualificationEnglish || ""}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
+          }
+        }).join("\n");
+        
+        return `${deptHeader}\n${docsText}`;
       }
     });
 
@@ -665,23 +678,6 @@ function RequestDetailsContent() {
       }
 
       const imageBlob = await response.blob();
-
-      // 3. Upload raw PNG image directly to Firebase Storage
-      const currentVer = generatedPoster?.version || 0;
-      const nextVer = currentVer + 1;
-      const year = dateString.substring(0, 4);
-      const month = dateString.substring(5, 7);
-      const storagePath = `posters/${year}/${month}/arogya-doctors-${dateString}-v${nextVer}.png`;
-
-      const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-      const { storage } = await import("@/lib/firebase");
-
-      const posterRef = ref(storage, storagePath);
-      await uploadBytes(posterRef, imageBlob, { contentType: "image/png" });
-      const downloadUrl = await getDownloadURL(posterRef);
-
-      // 4. Save metadata back to Firestore
-      await saveGeneratedPosterMetadata(dateString, storagePath, downloadUrl, nextVer, user.uid);
       
       // Auto-update request status from 'submitted' to 'processing'
       if (status === "submitted") {
@@ -689,10 +685,8 @@ function RequestDetailsContent() {
         setStatus("processing");
       }
 
-      // Reload
-      await loadData();
       setPreviewZoom(1);
-      return { downloadUrl, imageBlob };
+      return { imageBlob };
     } catch (err: any) {
       console.error(err);
       setError(`Failed to generate poster: ${err.message || err}`);
@@ -717,50 +711,24 @@ function RequestDetailsContent() {
   };
 
   const handleDownloadPNG = async () => {
-    if (!generatedPoster) return;
-    
     const filename = `arogya-doctors-${dateString}.png`;
-    
-    if (isPosterOutdated) {
-      setIsDownloadingPNG(true);
-      try {
-        await handleSavePosition();
-        
-        const payloadItems = scheduleItems.map((item, index) => ({
-          doctorId: item.doctorId,
-          departmentId: item.departmentId,
-          startTime: item.startTime,
-          endTime: item.endTime,
-          displayOrder: index,
-          itemType: item.itemType,
-        }));
-        await savePosterRequest(dateString, createdBy || user?.uid || "", status, payloadItems, showPhysiotherapy);
+    setIsDownloadingPNG(true);
+    try {
+      await handleSavePosition();
+      
+      const payloadItems = scheduleItems.map((item, index) => ({
+        doctorId: item.doctorId,
+        departmentId: item.departmentId,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        displayOrder: index,
+        itemType: item.itemType,
+      }));
+      await savePosterRequest(dateString, createdBy || user?.uid || "", status, payloadItems, showPhysiotherapy);
 
-        const result = await handleGeneratePoster();
-        if (result && result.imageBlob) {
-          setIsPosterOutdated(false);
-          const blobUrl = URL.createObjectURL(result.imageBlob);
-          const link = document.createElement("a");
-          link.href = blobUrl;
-          link.download = filename;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(blobUrl);
-        }
-      } catch (err) {
-        console.error("Auto-regeneration download failed:", err);
-        alert("Failed to auto-regenerate and download poster: " + err);
-      } finally {
-        setIsDownloadingPNG(false);
-      }
-    } else {
-      // Instant download of the pre-existing poster
-      try {
-        const res = await fetch(generatedPoster.downloadUrl);
-        if (!res.ok) throw new Error("Fetch failed");
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
+      const result = await handleGeneratePoster();
+      if (result && result.imageBlob) {
+        const blobUrl = URL.createObjectURL(result.imageBlob);
         const link = document.createElement("a");
         link.href = blobUrl;
         link.download = filename;
@@ -768,10 +736,12 @@ function RequestDetailsContent() {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(blobUrl);
-      } catch (e) {
-        console.error("CORS block or fetch error, falling back to new tab:", e);
-        window.open(generatedPoster.downloadUrl, "_blank");
       }
+    } catch (err) {
+      console.error("Poster download failed:", err);
+      alert("Failed to download poster: " + err);
+    } finally {
+      setIsDownloadingPNG(false);
     }
   };
 
@@ -797,7 +767,7 @@ function RequestDetailsContent() {
           <button
             type="button"
             onClick={() => router.push("/designer/requests")}
-            className="p-2 rounded-xl border border-slate-100 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors"
+            className="p-2 rounded-xl border border-[#d9d9d9] hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors"
           >
             <ArrowLeft className="h-4.5 w-4.5" />
           </button>
@@ -806,7 +776,7 @@ function RequestDetailsContent() {
       </div>
 
       {loading ? (
-        <div className="bg-white border border-slate-100 rounded-2xl py-24 flex flex-col items-center justify-center gap-2">
+        <div className="bg-white border border-[#d9d9d9] rounded-2xl py-24 flex flex-col items-center justify-center gap-2">
           <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs text-slate-400 font-semibold mt-1">Loading workspace...</span>
         </div>
@@ -845,7 +815,7 @@ function RequestDetailsContent() {
             <div className="lg:col-span-8 flex flex-col gap-5">
 
               {/* WhatsApp Paste Import Section */}
-              <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col gap-3.5 animate-fadeIn">
+              <div className="bg-white border border-[#d9d9d9] rounded-2xl p-5 shadow-xs flex flex-col gap-3.5 animate-fadeIn">
                 <div className="flex flex-col gap-1">
                   <h3 className="text-sm font-bold text-slate-800">Import Schedule</h3>
                 </div>
@@ -855,7 +825,7 @@ function RequestDetailsContent() {
                   onChange={(e) => setPastedText(e.target.value)}
                   placeholder="23/08/2026 ഞായർ&#10;&#10;ജനറൽ ഒ.പി&#10;ഡോ. മേബിൾ ജോൺ&#10;MBBS&#10;രാവിലെ 8 മണി രാത്രി 8 വരെ..."
                   rows={5}
-                  className="w-full p-3.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-700 bg-slate-50/10 resize-y min-h-[120px]"
+                  className="w-full p-3.5 border border-[#d9d9d9] rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-700 bg-slate-50/10 resize-y min-h-[120px]"
                 />
 
                 <div className="flex gap-3">
@@ -869,7 +839,7 @@ function RequestDetailsContent() {
                         alert("Clipboard permission not granted. Please paste text manually using keyboard shortcuts.");
                       }
                     }}
-                    className="flex-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl py-3 transition-all flex items-center justify-center gap-1.5 cursor-pointer h-11 shadow-xs"
+                    className="flex-1 bg-white hover:bg-slate-50 border border-[#d9d9d9] text-slate-700 font-bold text-xs rounded-xl py-3 transition-all flex items-center justify-center gap-1.5 cursor-pointer h-11 shadow-xs"
                   >
                     <span>Paste Text</span>
                   </button>
@@ -907,7 +877,7 @@ function RequestDetailsContent() {
                         setEditingItem(null);
                         setIsAddModalOpen(true);
                       }}
-                      className="bg-white border border-slate-100 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-slate-50 transition-colors shadow-xs"
+                      className="bg-white border border-[#d9d9d9] text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-slate-50 transition-colors shadow-xs"
                     >
                       <Plus className="h-4 w-4" />
                       <span>Add Doctor</span>
@@ -916,7 +886,7 @@ function RequestDetailsContent() {
                 </div>
 
                 {joinedItems.length === 0 ? (
-                  <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
+                  <div className="bg-white border border-[#d9d9d9] rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
                     <div className="p-3.5 rounded-full bg-teal-50/30 text-teal-600">
                       <Activity className="h-6 w-6" />
                     </div>
@@ -941,7 +911,7 @@ function RequestDetailsContent() {
                             onDragOver={(e) => handleDragOver(e, groupIdx)}
                             onDragEnd={handleDragEnd}
                             onDrop={(e) => handleDrop(e, groupIdx)}
-                            className={`w-full bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden shadow-xs transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md flex flex-col gap-1.5 ${
+                            className={`w-full bg-white border border-[#d9d9d9] rounded-2xl overflow-hidden shadow-xs transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md flex flex-col gap-1.5 ${
                               draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
                             }`}
                           >
@@ -1062,7 +1032,7 @@ function RequestDetailsContent() {
                         return (
                           <div
                             key={group.departmentId + "_fixed"}
-                            className="w-full bg-white border border-[#D9D9D9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-default"
+                            className="w-full bg-white border border-[#d9d9d9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-default"
                           >
                             {group.items.map((item, docIdx) => {
                               const blockMvmKey = `mvm-${item.id}`;
@@ -1136,7 +1106,7 @@ function RequestDetailsContent() {
 
 
               {/* Card 1.5: Poster Generation Settings */}
-              <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
+              <div className="bg-white border border-[#d9d9d9] p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Poster Layout Settings
                 </span>
@@ -1164,17 +1134,17 @@ function RequestDetailsContent() {
               </div>
 
               {/* Card 2: Poster Generation & Preview Card */}
-              <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
+              <div className="bg-white border border-[#d9d9d9] p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Poster Automation
                 </span>
 
                 {generating ? (
-                  <div className="border border-slate-100 rounded-xl p-8 flex flex-col items-center justify-center gap-2 bg-slate-50/50">
+                  <div className="border border-[#d9d9d9] rounded-xl p-8 flex flex-col items-center justify-center gap-2 bg-slate-50/50">
                     <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">Generating PNG...</span>
                   </div>
-                ) : generatedPoster ? (
+                ) : scheduleItems.length > 0 ? (
                   <div className="flex flex-col gap-2">
                     <button
                       type="button"
@@ -1182,7 +1152,7 @@ function RequestDetailsContent() {
                         setPreviewZoom(1);
                         setShowPreviewModal(true);
                       }}
-                      className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 h-10 shadow-xs"
+                      className="w-full bg-white hover:bg-slate-50 border border-[#d9d9d9] text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 h-10 shadow-xs"
                     >
                       <Eye className="h-4 w-4 text-slate-400" />
                       <span>Preview Poster</span>
@@ -1201,14 +1171,14 @@ function RequestDetailsContent() {
                       ) : (
                         <>
                           <Download className="h-4 w-4" />
-                          <span>{isPosterOutdated ? "Download (Update)" : "Download Poster"}</span>
+                          <span>Download Poster</span>
                         </>
                       )}
                     </button>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    <div className="border border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center gap-3">
+                    <div className="border border-dashed border-[#d9d9d9] rounded-xl p-6 flex flex-col items-center justify-center text-center gap-3">
                       <ImageIcon className="h-8 w-8 text-slate-350" />
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-bold text-slate-800 font-semibold">No poster generated yet</span>
@@ -1232,7 +1202,7 @@ function RequestDetailsContent() {
               </div>
 
               {/* Card 3: Date Copy Card */}
-              <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
+              <div className="bg-white border border-[#d9d9d9] p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Poster Header Date
                 </span>
@@ -1254,7 +1224,7 @@ function RequestDetailsContent() {
                     className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${
                       copiedFields["date-eng"]
                         ? "bg-teal-50 border-teal-100 text-teal-600"
-                        : "bg-white border-slate-150 text-slate-650 hover:bg-slate-50"
+                        : "bg-white border-[#d9d9d9] text-slate-650 hover:bg-slate-50"
                     }`}
                   >
                     {copiedFields["date-eng"] ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3 w-3" />}
@@ -1278,7 +1248,7 @@ function RequestDetailsContent() {
                     className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${
                       copiedFields["date-mal"]
                         ? "bg-teal-50 border-teal-100 text-teal-600"
-                        : "bg-white border-slate-150 text-slate-650 hover:bg-slate-50"
+                        : "bg-white border-[#d9d9d9] text-slate-650 hover:bg-slate-50"
                     }`}
                   >
                     {copiedFields["date-mal"] ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3 w-3" />}
@@ -1287,7 +1257,7 @@ function RequestDetailsContent() {
               </div>
 
               {/* Card 4: Global Poster Copies */}
-              <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-3 shadow-xs">
+              <div className="bg-white border border-[#d9d9d9] p-5 rounded-2xl flex flex-col gap-3 shadow-xs">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
                   Global Copy Actions
                 </span>
@@ -1298,7 +1268,7 @@ function RequestDetailsContent() {
                   className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     copiedFields["all-content-uni"]
                       ? "bg-teal-50 border-teal-100 text-teal-700"
-                      : "bg-white border-slate-100 hover:bg-slate-50 text-slate-755"
+                      : "bg-white border-[#d9d9d9] hover:bg-slate-50 text-slate-755"
                   }`}
                 >
                   {copiedFields["all-content-uni"] ? (
@@ -1314,7 +1284,7 @@ function RequestDetailsContent() {
                   className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
                     copiedFields["all-content-mvm"]
                       ? "bg-teal-50 border-teal-100 text-teal-700"
-                      : "bg-white border-slate-100 hover:bg-slate-50 text-slate-755"
+                      : "bg-white border-[#d9d9d9] hover:bg-slate-50 text-slate-755"
                   }`}
                 >
                   {copiedFields["all-content-mvm"] ? (
@@ -1344,7 +1314,7 @@ function RequestDetailsContent() {
       {/* Save Success Alert */}
       {showSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-[#d9d9d9] p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
             <div className="h-12 w-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center">
               <CheckCircle className="h-7 w-7" />
             </div>
@@ -1385,7 +1355,7 @@ function RequestDetailsContent() {
       {/* Bulk Import Options Modal */}
       {importCheck && importCheck.showDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-[#d9d9d9] p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
             <div className="h-12 w-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
               <Calendar className="h-6 w-6 text-teal-600" />
             </div>
@@ -1442,8 +1412,8 @@ function RequestDetailsContent() {
       {/* Validation Errors Modal */}
       {showValidationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-100 p-6 flex flex-col gap-4 shadow-2xl animate-scaleUp">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-[#d9d9d9] p-6 flex flex-col gap-4 shadow-2xl animate-scaleUp">
+            <div className="flex justify-between items-center pb-2 border-b border-[#d9d9d9]">
               <div className="flex items-center gap-2 text-amber-600">
                 <AlertTriangle className="h-5 w-5" />
                 <h3 className="font-bold text-slate-900 text-base">Validation Failed</h3>
@@ -1463,7 +1433,7 @@ function RequestDetailsContent() {
 
             <div className="max-h-60 overflow-y-auto flex flex-col gap-2.5 pr-1">
               {validationErrors.map((err, idx) => (
-                <div key={idx} className="flex justify-between items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
+                <div key={idx} className="flex justify-between items-center gap-3 p-3 rounded-xl bg-slate-50 border border-[#d9d9d9] text-xs">
                   <div className="flex flex-col gap-0.5 min-w-0">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       {err.type === "doctor" ? "Doctor" : "Department"}
@@ -1493,7 +1463,7 @@ function RequestDetailsContent() {
       )}
 
       {/* Poster Preview Modal */}
-      {showPreviewModal && generatedPoster && (() => {
+      {showPreviewModal && (() => {
         // Group items for preview
         const gpDepts: { [key: string]: any[] } = {};
         joinedItems.forEach((item) => {
@@ -1528,7 +1498,7 @@ function RequestDetailsContent() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white rounded-3xl border border-slate-100 flex flex-col md:flex-row shadow-2xl relative overflow-hidden my-8 animate-scaleUp animate-duration-200">
+          <div className="w-full max-w-4xl bg-white rounded-3xl border border-[#d9d9d9] flex flex-col md:flex-row shadow-2xl relative overflow-hidden my-8 animate-scaleUp animate-duration-200">
             
             {/* Left: Dynamic HTML display (scrollable if zoomed) */}
             <div className="flex-1 bg-slate-950 flex items-center justify-center p-6 min-h-[400px] max-h-[85vh] overflow-auto">
@@ -1804,12 +1774,12 @@ function RequestDetailsContent() {
               </div>
 
             {/* Right: Controls & Info */}
-            <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-100 p-6 flex flex-col justify-between bg-slate-50/50">
+            <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-[#d9d9d9] p-6 flex flex-col justify-between bg-slate-50/50">
               <div className="flex flex-col gap-5">
-                <div className="flex justify-between items-center pb-3 border-b border-slate-150">
+                <div className="flex justify-between items-center pb-3 border-b border-[#d9d9d9]">
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Preview</span>
-                    <h3 className="font-bold text-slate-900 text-base">Poster v{generatedPoster.version}</h3>
+                    <h3 className="font-bold text-slate-900 text-base">Poster Live Preview</h3>
                   </div>
                   <button
                     type="button"
@@ -1820,22 +1790,8 @@ function RequestDetailsContent() {
                   </button>
                 </div>
 
-                {/* Details */}
-                <div className="flex flex-col gap-3 text-xs text-slate-650">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase">File Path</span>
-                    <span className="font-mono text-slate-800 break-all select-all bg-white p-2 rounded-lg border border-slate-150">{generatedPoster.storagePath}</span>
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 uppercase">Generated At</span>
-                    <span className="font-semibold text-slate-850">
-                      {generatedPoster.generatedAt?.toDate ? generatedPoster.generatedAt.toDate().toLocaleString() : "Just now"}
-                    </span>
-                  </div>
-                </div>
-
                 {/* Adjust Date Position Option Panel */}
-                <div className="bg-slate-100 border border-slate-200/60 rounded-xl p-3 flex flex-col gap-2.5">
+                <div className="bg-slate-100 border border-[#d9d9d9]/60 rounded-xl p-3 flex flex-col gap-2.5">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                       Adjust Date Position
@@ -1844,7 +1800,7 @@ function RequestDetailsContent() {
                       type="button"
                       disabled={isSavingPosition}
                       onClick={handleSavePosition}
-                      className="text-[9px] text-teal-600 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
+                      className="text-[9px] text-teal-600 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-[#d9d9d9] px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
                     >
                       {positionSavedFeedback ? (
                         <>
@@ -1903,7 +1859,7 @@ function RequestDetailsContent() {
                     type="button"
                     disabled={previewZoom <= 0.75}
                     onClick={() => setPreviewZoom((z) => z - 0.25)}
-                    className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
+                    className="w-8 h-8 rounded-lg border border-[#d9d9d9] bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
                   >
                     -
                   </button>
@@ -1914,7 +1870,7 @@ function RequestDetailsContent() {
                     type="button"
                     disabled={previewZoom >= 2.0}
                     onClick={() => setPreviewZoom((z) => z + 0.25)}
-                    className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
+                    className="w-8 h-8 rounded-lg border border-[#d9d9d9] bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
                   >
                     +
                   </button>

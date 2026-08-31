@@ -76,12 +76,12 @@ export default function StaffUsersPage() {
 
       {/* Users List Cards */}
       {loading ? (
-        <div className="bg-white border border-slate-100 rounded-2xl py-16 flex flex-col items-center justify-center gap-2">
+        <div className="bg-white border border-[#D9D9D9] rounded-2xl py-16 flex flex-col items-center justify-center gap-2">
           <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs text-slate-400 font-semibold mt-1">Loading system users...</span>
         </div>
       ) : users.length === 0 ? (
-        <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
+        <div className="bg-white border border-[#D9D9D9] rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
           <div className="p-3.5 rounded-full bg-teal-50/40 text-teal-600">
             <Users className="h-6 w-6" />
           </div>
@@ -100,7 +100,7 @@ export default function StaffUsersPage() {
             return (
               <div
                 key={staffMember.uid}
-                className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-xs"
+                className="bg-white border border-[#D9D9D9] rounded-2xl p-4 flex items-center justify-between gap-4 shadow-xs"
               >
                 <div className="flex-1 flex items-center gap-3 min-w-0">
                   {/* Role Icon */}

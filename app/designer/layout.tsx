@@ -50,15 +50,14 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
     { label: "Dashboard", href: "/designer", icon: LayoutDashboard },
     { label: "Requests", href: "/designer/requests", icon: FileText },
     { label: "Poster", href: "/designer/poster", icon: ImageIcon },
-    { label: "Doctors", href: "/designer/doctors", icon: UserCheck },
-    { label: "Departments", href: "/designer/departments", icon: Building2 },
+    { label: "Doctors & Dept", href: "/designer/doctors", icon: UserCheck },
     { label: "Staff Users", href: "/designer/staff", icon: Users },
   ];
 
   return (
     <div className="flex min-h-screen bg-teal-50/8 font-sans">
       {/* 1. Desktop Left Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-100 h-screen sticky top-0 justify-between py-6 px-4 shrink-0 shadow-xs">
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-[#D9D9D9] h-screen sticky top-0 justify-between py-6 px-4 shrink-0 shadow-xs">
         <div className="flex flex-col gap-8">
           {/* Logo Header */}
           <div className="flex items-center gap-2.5 px-2">
@@ -95,7 +94,7 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
         </div>
 
         {/* Footer Log Out */}
-        <div className="flex flex-col gap-4 border-t border-slate-100 pt-4 px-2">
+        <div className="flex flex-col gap-4 border-t border-[#D9D9D9] pt-4 px-2">
           <div className="flex flex-col gap-0.5">
             <span className="text-xs font-bold text-slate-800">{profile.name}</span>
             <span className="text-[10px] text-slate-400 font-medium truncate">{profile.email}</span>
@@ -114,7 +113,7 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
       {/* 2. Main Content Container */}
       <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-6">
         {/* Mobile Top Header */}
-        <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 shadow-xs md:hidden">
+        <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-[#D9D9D9] shadow-xs md:hidden">
           <div className="flex items-center gap-2">
             <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-teal-50 overflow-hidden">
               <img src="/favicon.svg" alt="Arogya Logo" className="h-5 w-5 object-contain" />
@@ -138,7 +137,7 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
       </div>
 
       {/* 3. Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-100 shadow-lg px-2 py-2 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#D9D9D9] shadow-lg px-2 py-2 md:hidden">
         <div className="flex items-center justify-around">
           {menuItems.map((item) => {
             const Icon = item.icon;
