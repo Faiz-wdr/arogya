@@ -60,10 +60,6 @@ export default function PosterGenerator() {
     dayY: 245,
     dateFontSize: 76,
     dayFontSize: 76,
-    coverX: 1285,
-    coverY: 100,
-    coverW: 420,
-    coverH: 230,
   };
 
   const [coords, setCoords] = useState(defaultCoords);
@@ -137,10 +133,6 @@ export default function PosterGenerator() {
 
       // Draw the original template image
       ctx.drawImage(img, 0, 0);
-
-      // Cover the original date block with solid white
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(coords.coverX, coords.coverY, coords.coverW, coords.coverH);
 
       // Parse and format dates
       const localDate = parseLocalDate(selectedDate);
@@ -270,35 +262,32 @@ export default function PosterGenerator() {
           {/* Alignment controls when toggled */}
           {showAdvanced && (
             <div className="bg-white border border-slate-100 p-4 rounded-xl shadow-xs flex flex-col gap-4">
-              <div className="flex justify-between items-center border-b border-slate-50 pb-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Alignment Controls</span>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleSaveSettings}
-                    className="flex items-center gap-1.5 text-[9px] font-bold text-teal-650 hover:text-teal-800 cursor-pointer transition-colors"
-                  >
-                    {isSaved ? (
-                      <>
-                        <Check className="h-3 w-3" />
-                        <span>Saved!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-3 w-3" />
-                        <span>Save Alignment</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resetCoords}
-                    className="flex items-center gap-1 text-[9px] font-bold text-slate-400 hover:text-slate-600 cursor-pointer transition-colors"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    <span>Reset</span>
-                  </button>
-                </div>
+              <div className="flex justify-between items-center border-b border-slate-100/80 pb-3">
+                <button
+                  type="button"
+                  onClick={handleSaveSettings}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-2xs transition-all cursor-pointer"
+                >
+                  {isSaved ? (
+                    <>
+                      <Check className="h-3.5 w-3.5" />
+                      <span>Saved!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-3.5 w-3.5" />
+                      <span>Save</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetCoords}
+                  className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Reset</span>
+                </button>
               </div>
 
               {/* Date X */}
@@ -392,49 +381,6 @@ export default function PosterGenerator() {
                     <option value="normal">Regular</option>
                     <option value="300">Light</option>
                   </select>
-                </div>
-              </div>
-
-              {/* White Cover settings */}
-              <div className="p-3 bg-slate-50/70 rounded-lg border border-slate-100 flex flex-col gap-2">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cover Mask</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] font-medium text-slate-400">X Position</span>
-                    <input
-                      type="number"
-                      value={coords.coverX}
-                      onChange={(e) => handleCoordChange("coverX", Number(e.target.value))}
-                      className="px-2 py-1 border border-slate-200 rounded text-xs bg-white"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] font-medium text-slate-400">Y Position</span>
-                    <input
-                      type="number"
-                      value={coords.coverY}
-                      onChange={(e) => handleCoordChange("coverY", Number(e.target.value))}
-                      className="px-2 py-1 border border-slate-200 rounded text-xs bg-white"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] font-medium text-slate-400">Width</span>
-                    <input
-                      type="number"
-                      value={coords.coverW}
-                      onChange={(e) => handleCoordChange("coverW", Number(e.target.value))}
-                      className="px-2 py-1 border border-slate-200 rounded text-xs bg-white"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[8px] font-medium text-slate-400">Height</span>
-                    <input
-                      type="number"
-                      value={coords.coverH}
-                      onChange={(e) => handleCoordChange("coverH", Number(e.target.value))}
-                      className="px-2 py-1 border border-slate-200 rounded text-xs bg-white"
-                    />
-                  </div>
                 </div>
               </div>
             </div>

@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     // Load header banner file
-    const headerPath = path.join(process.cwd(), "public", "header.png");
+    const headerPath = path.join(process.cwd(), "public", "Header 2.png");
     if (!fs.existsSync(headerPath)) {
       return NextResponse.json(
         { error: `Header image not found at ${headerPath}` },

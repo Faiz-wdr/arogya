@@ -244,7 +244,7 @@ export async function checkDepartmentNameDuplicate(
   );
   const querySnapshot = await getDocs(q);
   if (querySnapshot.empty) return false;
-  
+
   if (excludeId) {
     return querySnapshot.docs.some((doc) => doc.id !== excludeId);
   }
@@ -287,7 +287,7 @@ export async function fetchPosterRequestWithItems(
   }
 
   const requestData = docSnap.data() as Omit<PosterRequest, "scheduleItems">;
-  
+
   // Fetch subcollection scheduleItems
   const itemsSnap = await getDocs(
     query(
@@ -295,7 +295,7 @@ export async function fetchPosterRequestWithItems(
       orderBy("displayOrder", "asc")
     )
   );
-  
+
   const scheduleItems = itemsSnap.docs.map((itemDoc) => ({
     id: itemDoc.id,
     ...itemDoc.data(),
@@ -319,11 +319,11 @@ export async function savePosterRequest(
 ): Promise<void> {
   const batch = writeBatch(db);
   const requestRef = doc(db, "posterRequests", dateString);
-  
+
   // Check if request already exists to retain its createdAt
   const requestSnap = await getDoc(requestRef);
   const isExisting = requestSnap.exists();
-  
+
   batch.set(requestRef, {
     date: dateString,
     status,
@@ -378,7 +378,7 @@ export async function fetchAllPosterRequests(): Promise<Omit<PosterRequest, "sch
   );
   const querySnapshot = await getDocs(q);
   const requests = querySnapshot.docs.map((doc) => doc.data()) as Omit<PosterRequest, "scheduleItems">[];
-  
+
   // Fetch user profiles to join creator names
   const usersMap: { [uid: string]: string } = {};
   const usersSnap = await getDocs(collection(db, "users"));
@@ -472,7 +472,7 @@ export async function seedDatabase(): Promise<boolean> {
       { id: "dept_general_op", nameEnglish: "General OP", nameMalayalamUnicode: "ജനറൽ ഒ.പി", nameMalayalamMVM: "PÈW¬ OP", displayOrder: 6, isActive: true, aliases: ["ജനറൽ OP", "ജനറൽ ഒ പി", "ജനറൽ ഒ.പി."] },
       { id: "dept_paediatric_dentistry", nameEnglish: "Paediatric Dentistry", nameMalayalamUnicode: "ശിശു ദന്ത ചികിത്സ വിഭാഗം", nameMalayalamMVM: "inip Z´ NnInÕm hn`mKw", displayOrder: 7, isActive: true, aliases: ["ശിശുദന്തചികിത്സാവിഭാഗം"] },
       { id: "dept_orthodontics", nameEnglish: "Orthodontics", nameMalayalamUnicode: "ദന്ത ക്രമീകരണ വിഭാഗം", nameMalayalamMVM: "Z´ {IaoIcW hn`mKw", displayOrder: 8, isActive: true, aliases: ["ദന്തക്രമീകരണവിഭാഗം"] },
-      { id: "dept_physiotherapy", nameEnglish: "Physiotherapy & Rehabilitation", nameMalayalamUnicode: "ഫിസിയോതെറാപ്പി & റിഹാബിലിറ്റേഷൻ", nameMalayalamMVM: "^nknbmt¯d¸n & dnlm_nentäj³", displayOrder: 99, isActive: true, aliases: [] },
+      { id: "dept_physiotherapy", nameEnglish: "Physiotherapy & Rehabilitation", nameMalayalamUnicode: "ഫിസിയോതെറാപി & റിഹാബിലിറ്റേഷൻ", nameMalayalamMVM: "^nkntbmsXdm]n & dnlm_nentäj³", displayOrder: 99, isActive: true, aliases: [] },
     ];
 
     // Seed departments
@@ -493,188 +493,188 @@ export async function seedDatabase(): Promise<boolean> {
     // List of doctors to seed
     const docs = [
       // General Medicine (MVM Ready)
-      { 
-        id: "doc_rahul_krishnan", 
-        departmentId: "dept_general_medicine", 
-        nameEnglish: "Dr. Rahul Krishnan", 
-        nameMalayalamUnicode: "ഡോ. രാഹുൽ കൃഷ്ണൻ", 
+      {
+        id: "doc_rahul_krishnan",
+        departmentId: "dept_general_medicine",
+        nameEnglish: "Dr. Rahul Krishnan",
+        nameMalayalamUnicode: "ഡോ. രാഹുൽ കൃഷ്ണൻ",
         nameMalayalamMVM: "tUm. cmlp¬ IrjvW³",
-        qualificationEnglish: "MD (General Medicine)", 
-        qualificationMalayalamUnicode: "എം.ഡി (ജനറൽ മെഡിസിൻ)", 
+        qualificationEnglish: "MD (General Medicine)",
+        qualificationMalayalamUnicode: "എം.ഡി (ജനറൽ മെഡിസിൻ)",
         qualificationMalayalamMVM: "Fw.Un. (PÈW¬ saUnkn³)",
         isActive: true,
         aliases: []
       },
       // General Medicine (MVM Missing)
-      { 
-        id: "doc_anjali_menon", 
-        departmentId: "dept_general_medicine", 
-        nameEnglish: "Dr. Anjali Menon", 
-        nameMalayalamUnicode: "ഡോ. അഞ്ജലി മേനോൻ", 
+      {
+        id: "doc_anjali_menon",
+        departmentId: "dept_general_medicine",
+        nameEnglish: "Dr. Anjali Menon",
+        nameMalayalamUnicode: "ഡോ. അഞ്ജലി മേനോൻ",
         nameMalayalamMVM: "", // Name MVM missing
-        qualificationEnglish: "MBBS, DNB", 
-        qualificationMalayalamUnicode: "എം.ബി.ബി.എസ്, ഡി.എൻ.ബി", 
+        qualificationEnglish: "MBBS, DNB",
+        qualificationMalayalamUnicode: "എം.ബി.ബി.എസ്, ഡി.എൻ.ബി",
         qualificationMalayalamMVM: "", // Qualification MVM missing
         isActive: true,
         aliases: []
       },
-      
+
       // Cardiology (MVM Ready)
-      { 
-        id: "doc_thomas_mathew", 
-        departmentId: "dept_cardiology", 
-        nameEnglish: "Dr. Thomas Mathew", 
-        nameMalayalamUnicode: "ഡോ. തോമസ് മാത്യു", 
+      {
+        id: "doc_thomas_mathew",
+        departmentId: "dept_cardiology",
+        nameEnglish: "Dr. Thomas Mathew",
+        nameMalayalamUnicode: "ഡോ. തോമസ് മാത്യു",
         nameMalayalamMVM: "tUm. tXmwk v amXyq",
-        qualificationEnglish: "MD, DM (Cardiology)", 
-        qualificationMalayalamUnicode: "എം.ഡി, ഡി.എം (കാർഡിയോളജി)", 
+        qualificationEnglish: "MD, DM (Cardiology)",
+        qualificationMalayalamUnicode: "എം.ഡി, ഡി.എം (കാർഡിയോളജി)",
         qualificationMalayalamMVM: "Fw.Un, Un.Fw (ImÀUntbmfPn)",
         isActive: true,
         aliases: []
       },
-      { 
-        id: "doc_priya_nair", 
-        departmentId: "dept_cardiology", 
-        nameEnglish: "Dr. Priya Nair", 
-        nameMalayalamUnicode: "ഡോ. പ്രിയ നായർ", 
+      {
+        id: "doc_priya_nair",
+        departmentId: "dept_cardiology",
+        nameEnglish: "Dr. Priya Nair",
+        nameMalayalamUnicode: "ഡോ. പ്രിയ നായർ",
         nameMalayalamMVM: "tUm. ]n vb \mbÀ",
-        qualificationEnglish: "MD, DNB (Cardiology)", 
-        qualificationMalayalamUnicode: "എം.ഡി, ഡി.എൻ.ബി (കാർഡിയോളജി)", 
+        qualificationEnglish: "MD, DNB (Cardiology)",
+        qualificationMalayalamUnicode: "എം.ഡി, ഡി.എൻ.ബി (കാർഡിയോളജി)",
         qualificationMalayalamMVM: "Fw.Un, UnF³_n (ImÀUntbmfPn)",
         isActive: true,
         aliases: []
       },
 
       // Dental (MVM Ready)
-      { 
-        id: "doc_manoj_joseph", 
-        departmentId: "dept_dental", 
-        nameEnglish: "Dr. Manoj Joseph", 
-        nameMalayalamUnicode: "ഡോ. മനോജ് ജോസഫ്", 
+      {
+        id: "doc_manoj_joseph",
+        departmentId: "dept_dental",
+        nameEnglish: "Dr. Manoj Joseph",
+        nameMalayalamUnicode: "ഡോ. മനോജ് ജോസഫ്",
         nameMalayalamMVM: "tUm. at\mPv tPmk^v",
-        qualificationEnglish: "MDS (Orthodontics)", 
-        qualificationMalayalamUnicode: "എം.ഡി.എസ് (ഓർത്തോഡോൺടിക്സ്)", 
+        qualificationEnglish: "MDS (Orthodontics)",
+        qualificationMalayalamUnicode: "എം.ഡി.എസ് (ഓർത്തോഡോൺടിക്സ്)",
         qualificationMalayalamMVM: "Fw.Un.Fkv (t\mÀt¯mUfâIvkv)",
         isActive: true,
         aliases: []
       },
-      { 
-        id: "doc_swapna_roy", 
-        departmentId: "dept_dental", 
-        nameEnglish: "Dr. Swapna Roy", 
-        nameMalayalamUnicode: "ഡോ. സ്വപ്ന റോയ്", 
+      {
+        id: "doc_swapna_roy",
+        departmentId: "dept_dental",
+        nameEnglish: "Dr. Swapna Roy",
+        nameMalayalamUnicode: "ഡോ. സ്വപ്ന റോയ്",
         nameMalayalamMVM: "", // missing
-        qualificationEnglish: "BDS", 
-        qualificationMalayalamUnicode: "ബി.ഡി.എസ്", 
+        qualificationEnglish: "BDS",
+        qualificationMalayalamUnicode: "ബി.ഡി.എസ്",
         qualificationMalayalamMVM: "", // missing
         isActive: true,
         aliases: []
       },
 
       // ENT (MVM Ready)
-      { 
-        id: "doc_harish_kumar", 
-        departmentId: "dept_ent", 
-        nameEnglish: "Dr. Harish Kumar", 
-        nameMalayalamUnicode: "ഡോ. ഹരീഷ് കുമാർ", 
+      {
+        id: "doc_harish_kumar",
+        departmentId: "dept_ent",
+        nameEnglish: "Dr. Harish Kumar",
+        nameMalayalamUnicode: "ഡോ. ഹരീഷ് കുമാർ",
         nameMalayalamMVM: "tUm. lcojv I amÀ",
-        qualificationEnglish: "MS, DLO (ENT)", 
-        qualificationMalayalamUnicode: "എം.എസ്, ഡി.എൽ.ഒ (ഇ.എൻ.ടി)", 
+        qualificationEnglish: "MS, DLO (ENT)",
+        qualificationMalayalamUnicode: "എം.എസ്, ഡി.എൽ.ഒ (ഇ.എൻ.ടി)",
         qualificationMalayalamMVM: "Fw.Fkv, Un.F¬.H (C.F³.Sn)",
         isActive: true,
         aliases: []
       },
 
       // Orthopaedics (MVM Ready)
-      { 
-        id: "doc_vivek_chandran", 
-        departmentId: "dept_orthopaedics", 
-        nameEnglish: "Dr. Vivek Chandran", 
-        nameMalayalamUnicode: "ഡോ. വിവേക് ചന്ദ്രൻ", 
+      {
+        id: "doc_vivek_chandran",
+        departmentId: "dept_orthopaedics",
+        nameEnglish: "Dr. Vivek Chandran",
+        nameMalayalamUnicode: "ഡോ. വിവേക് ചന്ദ്രൻ",
         nameMalayalamMVM: "tUm. hnthi v N{µ³",
-        qualificationEnglish: "MS (Ortho)", 
-        qualificationMalayalamUnicode: "എം.എസ് (ഓർത്തോ)", 
+        qualificationEnglish: "MS (Ortho)",
+        qualificationMalayalamUnicode: "എം.എസ് (ഓർത്തോ)",
         qualificationMalayalamMVM: "Fw.Fkv (HmtÀ¯m)",
         isActive: true,
         aliases: []
       },
       // Inactive doctor for validation testing
-      { 
-        id: "doc_sandeep_pillai", 
-        departmentId: "dept_orthopaedics", 
-        nameEnglish: "Dr. Sandeep Pillai (INACTIVE)", 
-        nameMalayalamUnicode: "ഡോ. സന്ദീപ് പിള്ള", 
+      {
+        id: "doc_sandeep_pillai",
+        departmentId: "dept_orthopaedics",
+        nameEnglish: "Dr. Sandeep Pillai (INACTIVE)",
+        nameMalayalamUnicode: "ഡോ. സന്ദീപ് പിള്ള",
         nameMalayalamMVM: "",
-        qualificationEnglish: "MS, MCh (Ortho)", 
-        qualificationMalayalamUnicode: "എം.എസ്, എം.സി.എച്ച് (ഓർത്തോ)", 
+        qualificationEnglish: "MS, MCh (Ortho)",
+        qualificationMalayalamUnicode: "എം.എസ്, എം.സി.എച്ച് (ഓർത്തോ)",
         qualificationMalayalamMVM: "",
         isActive: false,
         aliases: []
       },
 
       // General OP (New for Bulk Schedule Import testing)
-      { 
-        id: "doc_mabel_john", 
-        departmentId: "dept_general_op", 
-        nameEnglish: "Dr. Mabel John", 
-        nameMalayalamUnicode: "ഡോ. മേബിൾ ജോൺ", 
+      {
+        id: "doc_mabel_john",
+        departmentId: "dept_general_op",
+        nameEnglish: "Dr. Mabel John",
+        nameMalayalamUnicode: "ഡോ. മേബിൾ ജോൺ",
         nameMalayalamMVM: "tUm. ta_nÄ tPm¬",
-        qualificationEnglish: "MBBS", 
-        qualificationMalayalamUnicode: "എം.ബി.ബി.എസ്", 
+        qualificationEnglish: "MBBS",
+        qualificationMalayalamUnicode: "എം.ബി.ബി.എസ്",
         qualificationMalayalamMVM: "Fw._n._n.Fkv",
         isActive: true,
         aliases: ["മേബിൾ ജോൺ", "മേബിൾ"]
       },
-      { 
-        id: "doc_sujeesh_b_raj", 
-        departmentId: "dept_general_op", 
-        nameEnglish: "Dr. Sujeesh B Raj", 
-        nameMalayalamUnicode: "ഡോ. സുജീഷ് ബി രാജ്", 
+      {
+        id: "doc_sujeesh_b_raj",
+        departmentId: "dept_general_op",
+        nameEnglish: "Dr. Sujeesh B Raj",
+        nameMalayalamUnicode: "ഡോ. സുജീഷ് ബി രാജ്",
         nameMalayalamMVM: "tUm. kpPojv _n cmPv",
-        qualificationEnglish: "MBBS", 
-        qualificationMalayalamUnicode: "എം.ബി.ബി.എസ്", 
+        qualificationEnglish: "MBBS",
+        qualificationMalayalamUnicode: "എം.ബി.ബി.എസ്",
         qualificationMalayalamMVM: "Fw._n._n.Fkv",
         isActive: true,
         aliases: ["സുജീഷ് ബി രാജ്", "സുജീഷ്"]
       },
 
       // Dental (Additional New for Bulk Schedule Import testing)
-      { 
-        id: "doc_muhammad_sajid", 
-        departmentId: "dept_dental", 
-        nameEnglish: "Dr. Muhammad Sajid", 
-        nameMalayalamUnicode: "ഡോ. മുഹമ്മദ് സാജിദ്", 
+      {
+        id: "doc_muhammad_sajid",
+        departmentId: "dept_dental",
+        nameEnglish: "Dr. Muhammad Sajid",
+        nameMalayalamUnicode: "ഡോ. മുഹമ്മദ് സാജിദ്",
         nameMalayalamMVM: "tUm. apl½Zv kmpPnZv",
-        qualificationEnglish: "BDS (Dental Surgeon)", 
-        qualificationMalayalamUnicode: "ബി.ഡി.എസ് (ഡെന്റൽ സർജൻ)", 
+        qualificationEnglish: "BDS (Dental Surgeon)",
+        qualificationMalayalamUnicode: "ബി.ഡി.എസ് (ഡെന്റൽ സർജൻ)",
         qualificationMalayalamMVM: "_n.Un.Fkv",
         isActive: true,
         aliases: ["മുഹമ്മദ് സാജിദ്", "സാജിദ്"]
       },
 
       // Paediatric Dentistry (New for Bulk Schedule Import testing)
-      { 
-        id: "doc_aparna", 
-        departmentId: "dept_paediatric_dentistry", 
-        nameEnglish: "Dr. Aparna", 
-        nameMalayalamUnicode: "ഡോ. അപർണ", 
+      {
+        id: "doc_aparna",
+        departmentId: "dept_paediatric_dentistry",
+        nameEnglish: "Dr. Aparna",
+        nameMalayalamUnicode: "ഡോ. അപർണ",
         nameMalayalamMVM: "tUm. A]À®",
-        qualificationEnglish: "BDS, MDS", 
-        qualificationMalayalamUnicode: "ബി.ഡി.എസ്, എം.ഡി.എസ്", 
+        qualificationEnglish: "BDS, MDS",
+        qualificationMalayalamUnicode: "ബി.ഡി.എസ്, എം.ഡി.എസ്",
         qualificationMalayalamMVM: "_n.Un.Fkv, Fw.Un.Fkv",
         isActive: true,
         aliases: ["അപർണ"]
       },
 
       // Orthodontics (New for Bulk Schedule Import testing)
-      { 
-        id: "doc_moosa", 
-        departmentId: "dept_orthodontics", 
-        nameEnglish: "Dr. Moosa", 
-        nameMalayalamUnicode: "ഡോ. മൂസ", 
+      {
+        id: "doc_moosa",
+        departmentId: "dept_orthodontics",
+        nameEnglish: "Dr. Moosa",
+        nameMalayalamUnicode: "ഡോ. മൂസ",
         nameMalayalamMVM: "tUm. aqkm",
-        qualificationEnglish: "BDS, MDS", 
-        qualificationMalayalamUnicode: "ബി.ഡി.എസ്, എം.ഡി.എസ്", 
+        qualificationEnglish: "BDS, MDS",
+        qualificationMalayalamUnicode: "ബി.ഡി.എസ്, എം.ഡി.എസ്",
         qualificationMalayalamMVM: "_n.Un.Fkv, Fw.Un.Fkv",
         isActive: true,
         aliases: ["മൂസ"]

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -74,7 +74,7 @@ function RequestDetailsContent() {
   const [status, setStatus] = useState<"draft" | "submitted" | "processing" | "completed">("submitted");
   const [createdBy, setCreatedBy] = useState("");
   const [createdByName, setCreatedByName] = useState("");
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +87,27 @@ function RequestDetailsContent() {
   const [posterVersions, setPosterVersions] = useState<NonNullable<PosterRequest["posterVersions"]>>([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(1);
+  const [previewContainerWidth, setPreviewContainerWidth] = useState<number>(450);
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showPreviewModal) return;
+    const updateWidth = () => {
+      if (previewContainerRef.current) {
+        const w = previewContainerRef.current.clientWidth;
+        if (w > 0) {
+          setPreviewContainerWidth(Math.min(w, 450));
+        }
+      }
+    };
+    updateWidth();
+    const timer = setTimeout(updateWidth, 50);
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [showPreviewModal]);
   const [validationErrors, setValidationErrors] = useState<{ type: string; id: string; name: string; field: string; path: string }[]>([]);
   const [showValidationModal, setShowValidationModal] = useState(false);
 
@@ -157,7 +178,14 @@ function RequestDetailsContent() {
         const isOutdated = !request.generatedPoster || (updTime > 0 && genTime < updTime - 2000);
         setIsPosterOutdated(isOutdated);
       } else {
-        setError("Poster Request not found in the database.");
+        // Initialize new schedule for dates with no prior request
+        const dateObj = new Date(dateString);
+        const isWeekday = dateObj.getDay() !== 0;
+        setScheduleItems([]);
+        setStatus("draft");
+        setCreatedBy(user?.uid || "");
+        setCreatedByName("Designer (New)");
+        setShowPhysiotherapy(isWeekday);
       }
     } catch (err: any) {
       console.error(err);
@@ -181,7 +209,7 @@ function RequestDetailsContent() {
         ...item,
         departmentNameEnglish: dept ? dept.nameEnglish : (item.departmentNameEnglish || "Physiotherapy & Rehabilitation"),
         departmentNameMalayalamUnicode: dept ? dept.nameMalayalamUnicode : (item.departmentNameMalayalamUnicode || "ഫിസിയോതെറാപ്പി & റീഹാബിലിറ്റേഷൻ"),
-        departmentNameMalayalamMVM: dept ? dept.nameMalayalamMVM : (item.departmentNameMalayalamMVM || "^nknbmt¯d¸n & dolm_nentej³"),
+        departmentNameMalayalamMVM: dept ? dept.nameMalayalamMVM : (item.departmentNameMalayalamMVM || "^nkntbmsXdm]n & dnlm_nentäj³"),
       };
     } else {
       const docObj = doctors.find((d) => d.id === item.doctorId);
@@ -254,7 +282,7 @@ function RequestDetailsContent() {
       id: `local_${Date.now()}`,
       displayOrder: scheduleItems.length,
     };
-    
+
     // Put doctor items before the fixed service if it exists
     const fixedIndex = scheduleItems.findIndex((item) => item.itemType === "fixed_service");
     if (fixedIndex !== -1) {
@@ -364,7 +392,7 @@ function RequestDetailsContent() {
 
   const handleMergeSchedule = () => {
     if (!importCheck) return;
-    
+
     // Filter out physiotherapy fixed service to avoid duplication
     const filteredExisting = scheduleItems.filter(item => item.departmentId !== "dept_physiotherapy");
     const newParsedItems = convertParsedToScheduleItems(importCheck.parsedItems);
@@ -499,7 +527,7 @@ function RequestDetailsContent() {
   const copyDoctorBlock = (item: any, mode: "unicode" | "mvm", key: string) => {
     const isFixed = item.itemType === "fixed_service";
     let blockText = "";
-    
+
     if (mode === "unicode") {
       blockText = isFixed
         ? `${item.departmentNameMalayalamUnicode}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`
@@ -509,7 +537,7 @@ function RequestDetailsContent() {
         ? `${item.departmentNameMalayalamMVM || "[MVM Dept Missing]"}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`
         : `${item.departmentNameMalayalamMVM || "[MVM Dept Missing]"}\n${item.doctorNameMalayalamMVM || "[MVM Name Missing]"}\n${item.doctorQualificationEnglish || ""}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
     }
-    
+
     copyToClipboard(blockText, key);
   };
 
@@ -527,7 +555,7 @@ function RequestDetailsContent() {
         const deptHeader = mode === "unicode"
           ? group.departmentNameMalayalamUnicode
           : (group.departmentNameMalayalamMVM || "MVM content missing");
-        
+
         const docsText = group.items.map((item) => {
           if (mode === "unicode") {
             const qual = item.doctorQualificationMalayalamUnicode || item.doctorQualificationEnglish || "";
@@ -536,7 +564,7 @@ function RequestDetailsContent() {
             return `${item.doctorNameMalayalamMVM || "MVM content missing"}\n${item.doctorQualificationEnglish || ""}\n${formatTime12(item.startTime)} - ${formatTime12(item.endTime)}`;
           }
         }).join("\n");
-        
+
         return `${deptHeader}\n${docsText}`;
       }
     });
@@ -678,7 +706,7 @@ function RequestDetailsContent() {
       }
 
       const imageBlob = await response.blob();
-      
+
       // Auto-update request status from 'submitted' to 'processing'
       if (status === "submitted") {
         await updatePosterRequestStatus(dateString, "processing");
@@ -715,7 +743,7 @@ function RequestDetailsContent() {
     setIsDownloadingPNG(true);
     try {
       await handleSavePosition();
-      
+
       const payloadItems = scheduleItems.map((item, index) => ({
         doctorId: item.doctorId,
         departmentId: item.departmentId,
@@ -810,7 +838,7 @@ function RequestDetailsContent() {
 
           {/* Two Column Layout Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
+
             {/* LEFT COLUMN: Doctor List and Copy Area (Col span 8) */}
             <div className="lg:col-span-8 flex flex-col gap-5">
 
@@ -911,9 +939,8 @@ function RequestDetailsContent() {
                             onDragOver={(e) => handleDragOver(e, groupIdx)}
                             onDragEnd={handleDragEnd}
                             onDrop={(e) => handleDrop(e, groupIdx)}
-                            className={`w-full bg-white border border-[#d9d9d9] rounded-2xl overflow-hidden shadow-xs transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md flex flex-col gap-1.5 ${
-                              draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
-                            }`}
+                            className={`w-full bg-white border border-[#d9d9d9] rounded-2xl overflow-hidden shadow-xs transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md flex flex-col gap-1.5 ${draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
+                              }`}
                           >
                             {group.items.map((item, docIdx) => {
                               const blockMvmKey = `mvm-${item.id}`;
@@ -942,7 +969,7 @@ function RequestDetailsContent() {
                                           )}
                                         </div>
                                       )}
-                                      
+
                                       <div className="flex items-center gap-2 flex-wrap mt-0.5">
                                         {/* Doctor Name */}
                                         <h4 className="font-bold text-sm leading-tight truncate">
@@ -957,7 +984,7 @@ function RequestDetailsContent() {
                                           </span>
                                         )}
                                       </div>
-                                      
+
                                       {/* Doctor Qualification */}
                                       {item.doctorQualificationEnglish && (
                                         <span className="text-[#b2dfdb] text-xs font-semibold">
@@ -972,11 +999,10 @@ function RequestDetailsContent() {
                                       <button
                                         type="button"
                                         onClick={() => copyDoctorBlock(item, "mvm", blockMvmKey)}
-                                        className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center h-8 w-8 border-none shadow-sm ${
-                                          copiedFields[blockMvmKey]
-                                            ? "bg-[#e0f2f1] text-[#004d40]"
-                                            : "bg-white text-teal-600 hover:bg-[#e0f2f1]"
-                                        }`}
+                                        className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center h-8 w-8 border-none shadow-sm ${copiedFields[blockMvmKey]
+                                          ? "bg-[#e0f2f1] text-[#004d40]"
+                                          : "bg-white text-teal-600 hover:bg-[#e0f2f1]"
+                                          }`}
                                         title={copiedFields[blockMvmKey] ? "MVM Copied!" : "Copy MVM"}
                                       >
                                         {copiedFields[blockMvmKey] ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -1009,7 +1035,7 @@ function RequestDetailsContent() {
                                     <div className="text-[#029688] font-bold">
                                       {formatTime12(item.startTime)} - {formatTime12(item.endTime)}
                                     </div>
-                                    
+
                                     {docIdx === group.items.length - 1 && (
                                       <div className="text-[#999999] flex items-center gap-1">
                                         <GripVertical className="h-4 w-4 cursor-grab" />
@@ -1059,7 +1085,7 @@ function RequestDetailsContent() {
                                           )}
                                         </div>
                                       )}
-                                      
+
                                       {/* Service Name */}
                                       <h4 className="font-bold text-sm leading-tight mt-1 truncate">
                                         Physiotherapy & Rehabilitation Outpatient
@@ -1071,11 +1097,10 @@ function RequestDetailsContent() {
                                       <button
                                         type="button"
                                         onClick={() => copyDoctorBlock(item, "mvm", blockMvmKey)}
-                                        className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center h-8 w-8 border-none shadow-sm ${
-                                          copiedFields[blockMvmKey]
-                                            ? "bg-[#e0f2f1] text-[#004d40]"
-                                            : "bg-white text-teal-600 hover:bg-[#e0f2f1]"
-                                        }`}
+                                        className={`p-2 rounded-xl transition-all cursor-pointer flex items-center justify-center h-8 w-8 border-none shadow-sm ${copiedFields[blockMvmKey]
+                                          ? "bg-[#e0f2f1] text-[#004d40]"
+                                          : "bg-white text-teal-600 hover:bg-[#e0f2f1]"
+                                          }`}
                                         title={copiedFields[blockMvmKey] ? "MVM Copied!" : "Copy MVM"}
                                       >
                                         {copiedFields[blockMvmKey] ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -1102,7 +1127,7 @@ function RequestDetailsContent() {
 
             {/* RIGHT COLUMN: Actions, Statuses, Date Copy (Col span 4) */}
             <div className="lg:col-span-4 flex flex-col gap-5">
-              
+
 
 
               {/* Card 1.5: Poster Generation Settings */}
@@ -1110,7 +1135,7 @@ function RequestDetailsContent() {
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Poster Layout Settings
                 </span>
-                
+
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-xs font-bold text-slate-800">Physiotherapy & Rehab</span>
@@ -1221,11 +1246,10 @@ function RequestDetailsContent() {
                   <button
                     type="button"
                     onClick={() => copyToClipboard(getEnglishDateString(dateString), "date-eng")}
-                    className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${
-                      copiedFields["date-eng"]
-                        ? "bg-teal-50 border-teal-100 text-teal-600"
-                        : "bg-white border-[#d9d9d9] text-slate-650 hover:bg-slate-50"
-                    }`}
+                    className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${copiedFields["date-eng"]
+                      ? "bg-teal-50 border-teal-100 text-teal-600"
+                      : "bg-white border-[#d9d9d9] text-slate-650 hover:bg-slate-50"
+                      }`}
                   >
                     {copiedFields["date-eng"] ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3 w-3" />}
                   </button>
@@ -1245,11 +1269,10 @@ function RequestDetailsContent() {
                   <button
                     type="button"
                     onClick={() => copyToClipboard(getMalayalamDateString(dateString), "date-mal")}
-                    className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${
-                      copiedFields["date-mal"]
-                        ? "bg-teal-50 border-teal-100 text-teal-600"
-                        : "bg-white border-[#d9d9d9] text-slate-650 hover:bg-slate-50"
-                    }`}
+                    className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${copiedFields["date-mal"]
+                      ? "bg-teal-50 border-teal-100 text-teal-600"
+                      : "bg-white border-[#d9d9d9] text-slate-650 hover:bg-slate-50"
+                      }`}
                   >
                     {copiedFields["date-mal"] ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3 w-3" />}
                   </button>
@@ -1265,11 +1288,10 @@ function RequestDetailsContent() {
                 <button
                   type="button"
                   onClick={() => copyAllPosterContent("unicode", "all-content-uni")}
-                  className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    copiedFields["all-content-uni"]
-                      ? "bg-teal-50 border-teal-100 text-teal-700"
-                      : "bg-white border-[#d9d9d9] hover:bg-slate-50 text-slate-755"
-                  }`}
+                  className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${copiedFields["all-content-uni"]
+                    ? "bg-teal-50 border-teal-100 text-teal-700"
+                    : "bg-white border-[#d9d9d9] hover:bg-slate-50 text-slate-755"
+                    }`}
                 >
                   {copiedFields["all-content-uni"] ? (
                     <><Check className="h-4 w-4" /><span>All Unicode Copied!</span></>
@@ -1281,11 +1303,10 @@ function RequestDetailsContent() {
                 <button
                   type="button"
                   onClick={() => copyAllPosterContent("mvm", "all-content-mvm")}
-                  className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    copiedFields["all-content-mvm"]
-                      ? "bg-teal-50 border-teal-100 text-teal-700"
-                      : "bg-white border-[#d9d9d9] hover:bg-slate-50 text-slate-755"
-                  }`}
+                  className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${copiedFields["all-content-mvm"]
+                    ? "bg-teal-50 border-teal-100 text-teal-700"
+                    : "bg-white border-[#d9d9d9] hover:bg-slate-50 text-slate-755"
+                    }`}
                 >
                   {copiedFields["all-content-mvm"] ? (
                     <><Check className="h-4 w-4" /><span>All MVM Copied!</span></>
@@ -1359,13 +1380,13 @@ function RequestDetailsContent() {
             <div className="h-12 w-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
               <Calendar className="h-6 w-6 text-teal-600" />
             </div>
-            
+
             <div className="flex flex-col gap-1.5 font-sans">
               <h3 className="font-bold text-slate-900 text-base">Import Options</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
                 Choose how you want to add the {importCheck.parsedItems.length} parsed doctor entries to the current schedule.
               </p>
-              
+
               {importCheck.parsedDate && importCheck.parsedDate !== dateString && (
                 <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100 text-[10px] text-amber-850 font-semibold text-left leading-relaxed flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -1384,7 +1405,7 @@ function RequestDetailsContent() {
               >
                 Merge with Current Schedule
               </button>
-              
+
               <button
                 type="button"
                 onClick={() => {
@@ -1426,7 +1447,7 @@ function RequestDetailsContent() {
                 <X className="h-4.5 w-4.5" />
               </button>
             </div>
-            
+
             <p className="text-xs text-slate-500 leading-relaxed">
               We found missing MVM values required for poster generation. Please resolve them by following the links below:
             </p>
@@ -1468,7 +1489,7 @@ function RequestDetailsContent() {
         const gpDepts: { [key: string]: any[] } = {};
         joinedItems.forEach((item) => {
           const deptName = item.departmentNameMalayalamMVM || "Other";
-          if (showPhysiotherapy === false && (deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³")) return;
+          if (showPhysiotherapy === false && (deptName === "^nkntbmsXdm]n & dnlm_nentäj³" || deptName === "^nkntbmsXdm¸n & dolm_nentäj³" || deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³")) return;
           if (!gpDepts[deptName]) gpDepts[deptName] = [];
           gpDepts[deptName].push(item);
         });
@@ -1480,7 +1501,7 @@ function RequestDetailsContent() {
 
         let scheduleHeight = 0;
         Object.keys(gpDepts).forEach((deptName) => {
-          const isPhysio = deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³";
+          const isPhysio = deptName === "^nkntbmsXdm]n & dnlm_nentäj³" || deptName === "^nkntbmsXdm¸n & dolm_nentäj³" || deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³";
           if (isPhysio) {
             scheduleHeight += 163;
           } else {
@@ -1494,16 +1515,22 @@ function RequestDetailsContent() {
         }
 
         const posterHeight = Math.max(1600, 240 + scheduleHeight + 398 + 40);
-        const scaledHeight = posterHeight * 0.375;
+        const baseWidth = previewContainerWidth > 0 ? previewContainerWidth : 450;
+        const currentScale = (baseWidth / 1200) * previewZoom;
+        const scaledWidth = 1200 * currentScale;
+        const scaledHeight = posterHeight * currentScale;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-          <div className="w-full max-w-4xl bg-white rounded-3xl border border-[#d9d9d9] flex flex-col md:flex-row shadow-2xl relative overflow-hidden my-8 animate-scaleUp animate-duration-200">
-            
-            {/* Left: Dynamic HTML display (scrollable if zoomed) */}
-            <div className="flex-1 bg-slate-950 flex items-center justify-center p-6 min-h-[400px] max-h-[85vh] overflow-auto">
-              {/* Style declaration for custom fonts in browser */}
-              <style>{`
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+            <div className="w-full max-w-4xl bg-white rounded-2xl md:rounded-3xl border border-[#d9d9d9] flex flex-col md:flex-row shadow-2xl relative overflow-hidden my-2 sm:my-8 max-h-[95vh] md:max-h-[90vh] animate-scaleUp animate-duration-200">
+
+              {/* Left: Dynamic HTML display (scrollable if zoomed) */}
+              <div
+                ref={previewContainerRef}
+                className="flex-1 bg-slate-950 flex flex-col items-center justify-start p-3 sm:p-6 min-h-[300px] sm:min-h-[400px] max-h-[60vh] md:max-h-[85vh] overflow-auto w-full"
+              >
+                {/* Style declaration for custom fonts in browser */}
+                <style>{`
                 @import url('https://fonts.cdnfonts.com/css/muller');
 
                 @font-face {
@@ -1539,113 +1566,112 @@ function RequestDetailsContent() {
                   src: url('/fonts/gilmer/Gilmer-Bold.otf') format('opentype');
                 }
               `}</style>
-              <div 
-                className="transition-transform duration-200 origin-center shadow-2xl relative bg-[#F3EFE9] overflow-hidden rounded-lg"
-                style={{ 
-                  transform: `scale(${previewZoom})`,
-                  width: "450px",
-                  height: `${scaledHeight}px`,
-                }}
-              >
-                {/* Scale base 1200x(posterHeight) layout down using 0.375 factor */}
-                <div 
-                  className="absolute top-0 left-0 bg-[#F3EFE9]"
+                <div
+                  className="transition-transform duration-200 origin-top md:origin-center shadow-2xl relative bg-[#F3EFE9] overflow-hidden rounded-lg shrink-0 my-0 md:my-auto"
                   style={{
-                    width: "1200px",
-                    height: `${posterHeight}px`,
-                    transform: "scale(0.375)",
-                    transformOrigin: "top left",
-                    backgroundImage: "url('/header.png')",
-                    backgroundSize: "100% auto",
-                    backgroundPosition: "top center",
-                    backgroundRepeat: "no-repeat",
-                    fontFamily: "'Gilmer-Regular', sans-serif",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    padding: "240px 35px 45px 35px",
-                    position: "relative",
+                    width: `${scaledWidth}px`,
+                    height: `${scaledHeight}px`,
                   }}
                 >
-                  {/* Date overlay absolute positioned */}
-                  <div 
-                    className="absolute flex flex-col justify-center text-white"
+                  {/* Scale base 1200x(posterHeight) layout down using currentScale factor */}
+                  <div
+                    className="absolute top-0 left-0 bg-[#F3EFE9]"
                     style={{
-                      right: `${datePositionX}px`,
-                      top: `${datePositionY}px`,
-                      width: "210px",
-                      height: "98px",
-                      fontFamily: "'MVMAthira-Bold', sans-serif",
-                      fontSize: "34px",
-                      fontWeight: "bold",
-                      lineHeight: 0.85,
-                      textAlign: "left"
+                      width: "1200px",
+                      height: `${posterHeight}px`,
+                      transform: `scale(${currentScale})`,
+                      transformOrigin: "top left",
+                      backgroundImage: "url('/Header 2.png')",
+                      backgroundSize: "100% auto",
+                      backgroundPosition: "top center",
+                      backgroundRepeat: "no-repeat",
+                      fontFamily: "'Gilmer-Regular', sans-serif",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      padding: "240px 35px 45px 35px",
+                      position: "relative",
                     }}
                   >
-                    <span style={{ fontFamily: "'MVMAthira-Bold', sans-serif", fontSize: "34px", fontWeight: "bold", lineHeight: 0.85, whiteSpace: "nowrap" }}>{calDayMonth}</span>
-                    <span style={{ fontFamily: "'MVMAthira-Bold', sans-serif", fontSize: "34px", fontWeight: "bold", lineHeight: 0.85, marginTop: "0px", whiteSpace: "nowrap" }}>{calYearWeekday}</span>
-                  </div>
+                    {/* Date overlay absolute positioned */}
+                    <div
+                      className="absolute flex flex-col justify-center text-white"
+                      style={{
+                        right: `${datePositionX}px`,
+                        top: `${datePositionY}px`,
+                        width: "210px",
+                        height: "98px",
+                        fontFamily: "'MVMAthira-Bold', sans-serif",
+                        fontSize: "34px",
+                        fontWeight: "bold",
+                        lineHeight: 0.85,
+                        textAlign: "left"
+                      }}
+                    >
+                      <span style={{ fontFamily: "'MVMAthira-Bold', sans-serif", fontSize: "34px", fontWeight: "bold", lineHeight: 0.85, whiteSpace: "nowrap" }}>{calDayMonth}</span>
+                      <span style={{ fontFamily: "'MVMAthira-Bold', sans-serif", fontSize: "34px", fontWeight: "bold", lineHeight: 0.85, marginTop: "0px", whiteSpace: "nowrap" }}>{calYearWeekday}</span>
+                    </div>
 
-                  {/* Dynamic Schedule Area */}
-                  <div 
-                    className="flex flex-col justify-center"
-                    style={{
-                      flex: 1,
-                      gap: deptKeysCount <= 3 ? "36px" : deptKeysCount <= 5 ? "24px" : "20px",
-                      margin: "15px 0 25px 0"
-                    }}
-                  >
-                    {(() => {
-                      const previewDeptKeys = Object.keys(gpDepts);
-                      const previewDocRowHeight = deptKeysCount <= 3 ? "110px" : deptKeysCount <= 5 ? "95px" : "90px";
+                    {/* Dynamic Schedule Area */}
+                    <div
+                      className="flex flex-col justify-center"
+                      style={{
+                        flex: 1,
+                        gap: deptKeysCount <= 3 ? "36px" : deptKeysCount <= 5 ? "24px" : "20px",
+                        margin: "15px 0 25px 0"
+                      }}
+                    >
+                      {(() => {
+                        const previewDeptKeys = Object.keys(gpDepts);
+                        const previewDocRowHeight = deptKeysCount <= 3 ? "110px" : deptKeysCount <= 5 ? "95px" : "90px";
 
-                      return previewDeptKeys.map((deptName) => {
-                        const deptItems = gpDepts[deptName];
-                        const isPhysio = deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³";
+                        return previewDeptKeys.map((deptName) => {
+                          const deptItems = gpDepts[deptName];
+                          const isPhysio = deptName === "^nkntbmsXdm]n & dnlm_nentäj³" || deptName === "^nkntbmsXdm¸n & dolm_nentäj³" || deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³";
 
-                        if (isPhysio) {
-                          return (
-                            <div 
-                              key={deptName}
-                              className="w-full bg-white border border-[#E4E7EB] rounded-[24px] overflow-hidden grid"
-                              style={{ gridTemplateColumns: "1fr 285px", height: "163px" }}
-                            >
-                              <div 
-                                className="py-[15px] px-[30px] flex items-center justify-start text-[#148C8C] font-bold text-[50px] leading-[0.7] overflow-hidden"
-                                style={{ fontFamily: "'MVMAthira-Bold', sans-serif" }}
+                          if (isPhysio) {
+                            return (
+                              <div
+                                key={deptName}
+                                className="w-full bg-white border border-[#E4E7EB] rounded-[24px] overflow-hidden grid"
+                                style={{ gridTemplateColumns: "1fr 285px", height: "163px" }}
                               >
-                                <span style={{ transform: "translateY(-14px)", display: "inline-block", width: "100%" }}>{deptName}</span>
-                              </div>
-                              <div className="bg-[#577C8E] flex flex-col items-center justify-center py-[4px] px-[15px]">
-                                <div 
-                                  className="bg-[#148C8C] text-white rounded-[8px] py-[2px] px-[12px] flex flex-col items-center justify-center text-center shadow-[0_2px_6px_rgba(20,140,140,0.15)] mb-[12px]"
+                                <div
+                                  className="py-[15px] px-[30px] flex items-center justify-start text-[#148C8C] font-bold text-[50px] leading-[0.7] overflow-hidden"
                                   style={{ fontFamily: "'MVMAthira-Bold', sans-serif" }}
                                 >
-                                  <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>FÃm Znhkhpw</span>
-                                  <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>(ªmbÀ Ah[n)</span>
+                                  <span style={{ transform: "translateY(-14px)", display: "inline-block", width: "100%" }}>{deptName}</span>
                                 </div>
-                                <span 
-                                  className="text-[27px] text-white leading-none"
-                                  style={{ fontFamily: "'Gobold-Uplow', sans-serif", fontWeight: "normal" }}
-                                >
-                                  9:00 AM - 5:00 PM
-                                </span>
+                                <div className="bg-[#577C8E] flex flex-col items-center justify-center py-[4px] px-[15px]">
+                                  <div
+                                    className="bg-[#148C8C] text-white rounded-[8px] py-[2px] px-[12px] flex flex-col items-center justify-center text-center shadow-[0_2px_6px_rgba(20,140,140,0.15)] mb-[12px]"
+                                    style={{ fontFamily: "'MVMAthira-Bold', sans-serif" }}
+                                  >
+                                    <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>FÃm Znhkhpw</span>
+                                    <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>(ªmbÀ Ah[n)</span>
+                                  </div>
+                                  <span
+                                    className="text-[27px] text-white leading-none"
+                                    style={{ fontFamily: "'Gobold-Uplow', sans-serif", fontWeight: "normal" }}
+                                  >
+                                    9:00 AM - 5:00 PM
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        }
+                            );
+                          }
 
-                        return (
-                          <div 
-                            key={deptName}
-                            className="grid"
-                            style={{
-                              gridTemplateColumns: "310px 535px 285px",
-                              width: "100%"
-                            }}
-                          >
-                            <div className="flex items-center justify-center">
-                              <div 
+                          return (
+                            <div
+                              key={deptName}
+                              className="grid"
+                              style={{
+                                gridTemplateColumns: "310px 535px 285px",
+                                width: "100%"
+                              }}
+                            >
+                              <div className="flex items-center justify-center">
+                                <div
                                   className="bg-[#577C8E] text-white rounded-l-[24px] w-full h-[120px] flex items-center justify-start py-[15px] px-[20px] text-left leading-[1.0] font-bold shadow-[0_4px_10px_rgba(74,107,130,0.15)] overflow-hidden"
                                   style={{
                                     fontFamily: "'MVMAthira-Bold', sans-serif",
@@ -1660,7 +1686,7 @@ function RequestDetailsContent() {
                               </div>
 
                               {/* Middle: Doctors Card */}
-                              <div 
+                              <div
                                 className="bg-white border-y border-[#E4E7EB] py-[10px] px-[35px] flex flex-col justify-around shadow-[0_4px_12px_rgba(0,0,0,0.02)]"
                               >
                                 {deptItems.map((item, idx) => {
@@ -1668,19 +1694,19 @@ function RequestDetailsContent() {
                                   let qual = item.doctorQualificationEnglish || "";
 
                                   // Check if department is General OP
-                                  const isGeneralOp = 
-                                    item.departmentId === "dept_general_op" || 
+                                  const isGeneralOp =
+                                    item.departmentId === "dept_general_op" ||
                                     (deptName && (
-                                      (deptName.includes("PÈW¬") && deptName.includes("OP")) || 
+                                      (deptName.includes("PÈW¬") && deptName.includes("OP")) ||
                                       (deptName.includes("ജനറൽ") && (deptName.includes("ഒ.പി") || deptName.includes("ഒ പി") || deptName.includes("OP"))) ||
                                       (deptName.toLowerCase().includes("general") && deptName.toLowerCase().includes("op"))
                                     )) ||
-                                    (item.departmentNameEnglish && 
-                                      item.departmentNameEnglish.toLowerCase().includes("general") && 
+                                    (item.departmentNameEnglish &&
+                                      item.departmentNameEnglish.toLowerCase().includes("general") &&
                                       item.departmentNameEnglish.toLowerCase().includes("op")
                                     ) ||
-                                    (item.departmentNameMalayalamUnicode && 
-                                      item.departmentNameMalayalamUnicode.includes("ജനറൽ") && 
+                                    (item.departmentNameMalayalamUnicode &&
+                                      item.departmentNameMalayalamUnicode.includes("ജനറൽ") &&
                                       (item.departmentNameMalayalamUnicode.includes("ഒ.പി") || item.departmentNameMalayalamUnicode.includes("ഒ പി") || item.departmentNameMalayalamUnicode.includes("OP"))
                                     );
                                   if (docName === "RMO" || (isGeneralOp && (docName === "[Missing Name]" || !docName))) {
@@ -1690,9 +1716,9 @@ function RequestDetailsContent() {
 
                                   // Determine if the displayed name is in English
                                   const cleanName = (name: string) => name.toLowerCase().replace(/^(dr|tum)\.?\s*/, "").trim();
-                                  const isEnglish = docName === "RMO" || 
-                                                    docName.startsWith("Dr.") || 
-                                                    (item.doctorNameEnglish && cleanName(docName) === cleanName(item.doctorNameEnglish));
+                                  const isEnglish = docName === "RMO" ||
+                                    docName.startsWith("Dr.") ||
+                                    (item.doctorNameEnglish && cleanName(docName) === cleanName(item.doctorNameEnglish));
 
                                   // Apply Muller font styling for English names
                                   const docFontFamily = isEnglish ? "'Muller', sans-serif" : "'MLKVShaji-Bold', sans-serif";
@@ -1702,11 +1728,11 @@ function RequestDetailsContent() {
                                   return (
                                     <React.Fragment key={item.id}>
                                       {idx > 0 && <div className="h-[1px] bg-[#E2E8F0] w-full" />}
-                                      <div 
+                                      <div
                                         className="flex flex-col justify-center"
                                         style={{ minHeight: previewDocRowHeight, padding: "12px 0", transform: "translateY(-8px)" }}
                                       >
-                                        <div 
+                                        <div
                                           className="text-[#305C71] leading-[1.0]"
                                           style={{
                                             fontFamily: docFontFamily,
@@ -1717,8 +1743,8 @@ function RequestDetailsContent() {
                                           {docName}
                                         </div>
                                         {qual && (
-                                          <div 
-                                            className="text-[#95B6C7] mt-[4px] leading-[0.9]"
+                                          <div
+                                            className="text-[#95B6C7] mt-[6px] leading-[0.9]"
                                             style={{
                                               fontFamily: "'Gilmer-Medium', sans-serif",
                                               fontSize: "24px",
@@ -1735,7 +1761,7 @@ function RequestDetailsContent() {
                               </div>
 
                               {/* Right: Time Badges */}
-                              <div 
+                              <div
                                 className="flex flex-col h-full"
                                 style={deptItems.length > 1 ? { gap: "12px" } : {}}
                               >
@@ -1744,7 +1770,7 @@ function RequestDetailsContent() {
                                   const borderRadius = deptItems.length === 1 ? "0 24px 24px 0" : "0 20px 20px 0";
                                   return (
                                     <div key={item.id} className="flex flex-1 w-full">
-                                      <div 
+                                      <div
                                         className="bg-[#577C8E] text-white w-full h-full flex items-center justify-center text-center p-[10px] shadow-[0_4px_10px_rgba(74,107,130,0.15)]"
                                         style={{
                                           borderRadius,
@@ -1773,150 +1799,150 @@ function RequestDetailsContent() {
                 </div>
               </div>
 
-            {/* Right: Controls & Info */}
-            <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-[#d9d9d9] p-6 flex flex-col justify-between bg-slate-50/50">
-              <div className="flex flex-col gap-5">
-                <div className="flex justify-between items-center pb-3 border-b border-[#d9d9d9]">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Preview</span>
-                    <h3 className="font-bold text-slate-900 text-base">Poster Live Preview</h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPreviewModal(false)}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-450 cursor-pointer"
-                  >
-                    <X className="h-4.5 w-4.5" />
-                  </button>
-                </div>
-
-                {/* Adjust Date Position Option Panel */}
-                <div className="bg-slate-100 border border-[#d9d9d9]/60 rounded-xl p-3 flex flex-col gap-2.5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                      Adjust Date Position
-                    </span>
+              {/* Right: Controls & Info */}
+              <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-[#d9d9d9] p-6 flex flex-col justify-between bg-slate-50/50">
+                <div className="flex flex-col gap-5">
+                  <div className="flex justify-between items-center pb-3 border-b border-[#d9d9d9]">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Preview</span>
+                      <h3 className="font-bold text-slate-900 text-base">Poster Live Preview</h3>
+                    </div>
                     <button
                       type="button"
-                      disabled={isSavingPosition}
-                      onClick={handleSavePosition}
-                      className="text-[9px] text-teal-600 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-[#d9d9d9] px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
+                      onClick={() => setShowPreviewModal(false)}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-450 cursor-pointer"
                     >
-                      {positionSavedFeedback ? (
-                        <>
-                          <Check className="h-3 w-3" />
-                          <span>Saved!</span>
-                        </>
-                      ) : (
-                        <span>{isSavingPosition ? "Saving..." : "Save"}</span>
-                      )}
+                      <X className="h-4.5 w-4.5" />
                     </button>
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex justify-between text-[8px] font-semibold text-slate-400">
-                        <span>Top Offset (Y)</span>
-                        <span className="font-bold text-slate-650">{datePositionY}px</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="400"
-                        value={datePositionY}
-                        onChange={(e) => {
-                          setDatePositionY(parseInt(e.target.value, 10));
-                          setIsPosterOutdated(true);
-                        }}
-                        className="w-full accent-teal-600 cursor-pointer h-1 bg-slate-200 rounded-lg appearance-none"
-                      />
+                  {/* Adjust Date Position Option Panel */}
+                  <div className="bg-slate-100 border border-[#d9d9d9]/60 rounded-xl p-3 flex flex-col gap-2.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                        Adjust Date Position
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isSavingPosition}
+                        onClick={handleSavePosition}
+                        className="text-[9px] text-teal-600 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-[#d9d9d9] px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
+                      >
+                        {positionSavedFeedback ? (
+                          <>
+                            <Check className="h-3 w-3" />
+                            <span>Saved!</span>
+                          </>
+                        ) : (
+                          <span>{isSavingPosition ? "Saving..." : "Save"}</span>
+                        )}
+                      </button>
                     </div>
 
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex justify-between text-[8px] font-semibold text-slate-400">
-                        <span>Right Offset (X)</span>
-                        <span className="font-bold text-slate-650">{datePositionX}px</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex justify-between text-[8px] font-semibold text-slate-400">
+                          <span>Top Offset (Y)</span>
+                          <span className="font-bold text-slate-650">{datePositionY}px</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="400"
+                          value={datePositionY}
+                          onChange={(e) => {
+                            setDatePositionY(parseInt(e.target.value, 10));
+                            setIsPosterOutdated(true);
+                          }}
+                          className="w-full accent-teal-600 cursor-pointer h-1 bg-slate-200 rounded-lg appearance-none"
+                        />
                       </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="400"
-                        value={datePositionX}
-                        onChange={(e) => {
-                          setDatePositionX(parseInt(e.target.value, 10));
-                          setIsPosterOutdated(true);
-                        }}
-                        className="w-full accent-teal-600 cursor-pointer h-1 bg-slate-200 rounded-lg appearance-none"
-                      />
+
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex justify-between text-[8px] font-semibold text-slate-400">
+                          <span>Right Offset (X)</span>
+                          <span className="font-bold text-slate-650">{datePositionX}px</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="400"
+                          value={datePositionX}
+                          onChange={(e) => {
+                            setDatePositionX(parseInt(e.target.value, 10));
+                            setIsPosterOutdated(true);
+                          }}
+                          className="w-full accent-teal-600 cursor-pointer h-1 bg-slate-200 rounded-lg appearance-none"
+                        />
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Zoom Controls */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-455 uppercase shrink-0 pr-1">Zoom</span>
+                    <button
+                      type="button"
+                      disabled={previewZoom <= 0.75}
+                      onClick={() => setPreviewZoom((z) => z - 0.25)}
+                      className="w-8 h-8 rounded-lg border border-[#d9d9d9] bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-semibold text-slate-700 font-mono w-10 text-center">
+                      {Math.round(previewZoom * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      disabled={previewZoom >= 2.0}
+                      onClick={() => setPreviewZoom((z) => z + 0.25)}
+                      className="w-8 h-8 rounded-lg border border-[#d9d9d9] bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 
-                {/* Zoom Controls */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-455 uppercase shrink-0 pr-1">Zoom</span>
+                {/* Action buttons */}
+                <div className="flex flex-col gap-2.5 mt-6 md:mt-0">
                   <button
                     type="button"
-                    disabled={previewZoom <= 0.75}
-                    onClick={() => setPreviewZoom((z) => z - 0.25)}
-                    className="w-8 h-8 rounded-lg border border-[#d9d9d9] bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
+                    disabled={isDownloadingPNG || generating}
+                    onClick={handleDownloadPNG}
+                    className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-xs py-3 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
                   >
-                    -
+                    {isDownloadingPNG || generating ? (
+                      <>
+                        <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>{isDownloadingPNG ? "Regenerating & Downloading..." : "Regenerating..."}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4" />
+                        <span>{isPosterOutdated ? "Download PNG (Regenerating)" : "Download PNG"}</span>
+                      </>
+                    )}
                   </button>
-                  <span className="text-xs font-semibold text-slate-700 font-mono w-10 text-center">
-                    {Math.round(previewZoom * 100)}%
-                  </span>
-                  <button
-                    type="button"
-                    disabled={previewZoom >= 2.0}
-                    onClick={() => setPreviewZoom((z) => z + 0.25)}
-                    className="w-8 h-8 rounded-lg border border-[#d9d9d9] bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
 
-              {/* Action buttons */}
-              <div className="flex flex-col gap-2.5 mt-6 md:mt-0">
-                <button
-                  type="button"
-                  disabled={isDownloadingPNG || generating}
-                  onClick={handleDownloadPNG}
-                  className="w-full bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-xs py-3 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-xs"
-                >
-                  {isDownloadingPNG || generating ? (
-                    <>
-                      <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>{isDownloadingPNG ? "Regenerating & Downloading..." : "Regenerating..."}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4" />
-                      <span>{isPosterOutdated ? "Download PNG (Regenerating)" : "Download PNG"}</span>
-                    </>
+                  {status !== "completed" && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await handleUpdateStatus("completed");
+                        setShowPreviewModal(false);
+                      }}
+                      className="w-full bg-slate-900 hover:bg-black text-white font-bold text-xs py-3 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Check className="h-4 w-4" />
+                      <span>Confirm Completion</span>
+                    </button>
                   )}
-                </button>
-
-                {status !== "completed" && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await handleUpdateStatus("completed");
-                      setShowPreviewModal(false);
-                    }}
-                    className="w-full bg-slate-900 hover:bg-black text-white font-bold text-xs py-3 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Check className="h-4 w-4" />
-                    <span>Confirm Completion</span>
-                  </button>
-                )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      );
-    })()}
+        );
+      })()}
     </div>
   );
 }

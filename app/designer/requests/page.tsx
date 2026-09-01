@@ -2,16 +2,24 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { fetchAllPosterRequests, PosterRequest, deletePosterRequest } from "@/lib/services/db";
-import { Calendar, ChevronRight, Filter, AlertCircle, FileSpreadsheet, Clock, Trash2 } from "lucide-react";
+import { Calendar, ChevronRight, Filter, AlertCircle, FileSpreadsheet, Clock, Trash2, Plus, X } from "lucide-react";
 
 export default function PosterRequestsPage() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [requests, setRequests] = useState<Omit<PosterRequest, "scheduleItems">[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Filters
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
+
+  // Create New Schedule State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newScheduleDate, setNewScheduleDate] = useState("");
 
   const loadRequests = async () => {
     setLoading(true);
@@ -39,9 +47,23 @@ export default function PosterRequestsPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Title Header */}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-bold text-slate-900">Poster Requests Log</h2>
-        <p className="text-xs text-slate-500">Track, edit, and update the status of schedule posters</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-xl font-bold text-slate-900">Poster Requests Log</h2>
+          <p className="text-xs text-slate-500">Track, edit, and update the status of schedule posters</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setNewScheduleDate(new Date().toISOString().split("T")[0]);
+            setIsCreateModalOpen(true);
+          }}
+          className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors h-10 shrink-0"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Create New Schedule</span>
+        </button>
       </div>
 
       {/* Filter Row */}
@@ -183,6 +205,62 @@ export default function PosterRequestsPage() {
               </button>
             </div>
           ))}
+        </div>
+      )}
+      {/* Create New Schedule Dialog Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-[#D9D9D9] p-6 flex flex-col gap-4 shadow-2xl animate-scaleUp">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-base">Create New Schedule</h3>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-650 transition-colors cursor-pointer"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Select a date to create a new daily poster schedule without waiting for a staff request.
+            </p>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="newScheduleDate" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Select Date
+              </label>
+              <input
+                id="newScheduleDate"
+                type="date"
+                value={newScheduleDate}
+                onChange={(e) => setNewScheduleDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-[#D9D9D9] focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-sm text-slate-900 bg-white h-11 cursor-pointer"
+                required
+              />
+            </div>
+
+            <div className="flex gap-3 mt-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="flex-1 bg-white hover:bg-slate-50 border border-[#D9D9D9] text-slate-700 font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!newScheduleDate}
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  router.push(`/designer/requests/${newScheduleDate}`);
+                }}
+                className="flex-1 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
+              >
+                Proceed
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

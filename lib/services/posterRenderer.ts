@@ -49,7 +49,7 @@ export function generatePosterHtml(
   const groupedDepts: { [key: string]: any[] } = {};
   items.forEach((item) => {
     const deptName = item.departmentNameMalayalamMVM || "Other";
-    if (showPhysiotherapy === false && (deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³" || deptName === "^nknbmt¯d¸n & dnlm_nentäj³")) {
+    if (showPhysiotherapy === false && (deptName === "^nkntbmsXdm]n & dnlm_nentäj³" || deptName === "^nkntbmsXdm]n & dnlm_nentäj³" || deptName === "^nkntbmsXdm]n & dnlm_nentäj³")) {
       return; // Skip Physiotherapy if toggled off
     }
     if (!groupedDepts[deptName]) {
@@ -97,7 +97,7 @@ export function generatePosterHtml(
   const rowsHtml = departmentKeys
     .map((deptName) => {
       const deptItems = groupedDepts[deptName];
-      const isPhysio = deptName === "^nknbmt¯d¸n & dolm_nentej³" || deptName === "^nknbmtXncm_n & dnhm_nentedj³" || deptName === "^nknbmt¯d¸n & dnlm_nentäj³";
+      const isPhysio = deptName === "^nkntbmsXdm]n & dnlm_nentäj³" || deptName === "^nkntbmsXdm]n & dnlm_nentäj³" || deptName === "^nkntbmsXdm]n & dnlm_nentäj³";
 
       if (isPhysio) {
         // Special full-width layout for fixed Physiotherapy
@@ -135,19 +135,19 @@ export function generatePosterHtml(
             let qual = item.doctorQualificationEnglish || "";
 
             // Check if department is General OP
-            const isGeneralOp = 
-              item.departmentId === "dept_general_op" || 
+            const isGeneralOp =
+              item.departmentId === "dept_general_op" ||
               (deptName && (
-                (deptName.includes("PÈW¬") && deptName.includes("OP")) || 
+                (deptName.includes("PÈW¬") && deptName.includes("OP")) ||
                 (deptName.includes("ജനറൽ") && (deptName.includes("ഒ.പി") || deptName.includes("ഒ പി") || deptName.includes("OP"))) ||
                 (deptName.toLowerCase().includes("general") && deptName.toLowerCase().includes("op"))
               )) ||
-              (item.departmentNameEnglish && 
-                item.departmentNameEnglish.toLowerCase().includes("general") && 
+              (item.departmentNameEnglish &&
+                item.departmentNameEnglish.toLowerCase().includes("general") &&
                 item.departmentNameEnglish.toLowerCase().includes("op")
               ) ||
-              (item.departmentNameMalayalamUnicode && 
-                item.departmentNameMalayalamUnicode.includes("ജനറൽ") && 
+              (item.departmentNameMalayalamUnicode &&
+                item.departmentNameMalayalamUnicode.includes("ജനറൽ") &&
                 (item.departmentNameMalayalamUnicode.includes("ഒ.പി") || item.departmentNameMalayalamUnicode.includes("ഒ പി") || item.departmentNameMalayalamUnicode.includes("OP"))
               );
             if (docName === "RMO" || (isGeneralOp && (docName === "[Missing Name]" || !docName))) {
@@ -157,13 +157,13 @@ export function generatePosterHtml(
 
             // Determine if the displayed name is in English
             const cleanName = (name: string) => name.toLowerCase().replace(/^(dr|tum)\.?\s*/, "").trim();
-            const isEnglish = docName === "RMO" || 
-                              docName.startsWith("Dr.") || 
-                              (item.doctorNameEnglish && cleanName(docName) === cleanName(item.doctorNameEnglish));
+            const isEnglish = docName === "RMO" ||
+              docName.startsWith("Dr.") ||
+              (item.doctorNameEnglish && cleanName(docName) === cleanName(item.doctorNameEnglish));
 
             // Apply Muller font for English doctor names
-            const docStyle = isEnglish 
-              ? "font-family: 'Muller', sans-serif; font-weight: normal; font-size: 44px;" 
+            const docStyle = isEnglish
+              ? "font-family: 'Muller', sans-serif; font-weight: normal; font-size: 44px;"
               : `font-family: 'MLKVShaji-Bold', sans-serif; font-size: ${docFontSize}px;`;
 
             return `
@@ -388,7 +388,7 @@ export function generatePosterHtml(
         .doctor-qual {
           font-family: 'Gilmer-Medium', sans-serif;
           color: #95B6C7;
-          margin-top: 4px;
+          margin-top: 6px;
           line-height: 0.9;
           word-break: break-word;
         }
