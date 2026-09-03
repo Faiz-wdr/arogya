@@ -61,9 +61,8 @@ export default function StaffUsersPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-bold text-slate-900">Staff User Management</h2>
-        <p className="text-xs text-slate-500">Authorize or suspend system access credentials</p>
+      <div className="flex flex-col">
+        <h2 className="text-xl font-bold text-slate-900">Staff Account Management</h2>
       </div>
 
       {/* Safety Alert Banners */}

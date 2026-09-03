@@ -425,7 +425,6 @@ export default function DoctorsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Doctors and Departments</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Manage clinic directory, credentials, and MVM print data</p>
         </div>
         <div className="flex items-center gap-2">
           <button

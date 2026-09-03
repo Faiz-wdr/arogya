@@ -6,22 +6,24 @@ import {
   fetchAllPosterRequests,
   fetchPosterRequestWithItems,
   fetchActiveDoctors,
+  fetchAllDepartments,
   PosterRequest,
-  Doctor
 } from "@/lib/services/db";
 import {
   Calendar,
-  FileCheck,
-  Clock,
-  UserCheck,
+  Building2,
+  CheckCircle2,
+  Users,
   ChevronRight,
-  TrendingUp,
-  AlertCircle
+  Plus,
+  Sparkles,
+  FileText
 } from "lucide-react";
 
 export default function DesignerDashboard() {
   const [requests, setRequests] = useState<Omit<PosterRequest, "scheduleItems">[]>([]);
   const [activeDoctorsCount, setActiveDoctorsCount] = useState(0);
+  const [departmentsCount, setDepartmentsCount] = useState(0);
   const [todayRequest, setTodayRequest] = useState<PosterRequest | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,10 +42,12 @@ export default function DesignerDashboard() {
         const todayStr = getTodayDateString();
         const allRequests = await fetchAllPosterRequests();
         const activeDocs = await fetchActiveDoctors();
+        const allDepts = await fetchAllDepartments();
         const todayData = await fetchPosterRequestWithItems(todayStr);
 
         setRequests(allRequests);
         setActiveDoctorsCount(activeDocs.length);
+        setDepartmentsCount(allDepts.length);
         setTodayRequest(todayData);
       } catch (error) {
         console.error("Error loading dashboard data:", error);
@@ -56,159 +60,175 @@ export default function DesignerDashboard() {
 
   if (loading) {
     return (
-      <div className="bg-white border border-[#D9D9D9] rounded-2xl py-24 flex flex-col items-center justify-center gap-2">
+      <div className="bg-white border border-slate-200/80 rounded-2xl py-24 flex flex-col items-center justify-center gap-3 shadow-2xs">
         <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-        <span className="text-xs text-slate-400 font-semibold mt-1">Loading dashboard stats...</span>
+        <span className="text-xs text-slate-400 font-medium">Loading overview...</span>
       </div>
     );
   }
 
-  // Calculate quick metrics
-  const submittedCount = requests.filter((r) => r.status === "submitted").length;
+  // Quick metrics
   const completedCount = requests.filter((r) => r.status === "completed").length;
-  const recentRequests = requests.slice(0, 5); // top 5 recent
+  const recentRequests = requests.slice(0, 5);
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Welcome Header */}
-      <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-bold text-slate-900">Dashboard Overview</h2>
-        <p className="text-xs text-slate-500">Monitor daily requests and database status</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Dashboard</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/designer/requests"
+            className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs h-9 cursor-pointer"
+          >
+            <Plus className="h-3.5 w-3.5 text-slate-500" />
+            <span>New Schedule</span>
+          </Link>
+          <Link
+            href="/designer/poster"
+            className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs h-9 cursor-pointer"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Create Poster</span>
+          </Link>
+        </div>
       </div>
 
-      {/* Grid of Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Today's Schedule Card */}
-        <div className="bg-white border border-[#D9D9D9] p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
-          <div className="flex justify-between items-center text-teal-600">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Today's Schedule</span>
-            <Calendar className="h-4.5 w-4.5" />
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* Today's Schedule Status */}
+        <div className="bg-white border border-slate-200/70 p-4 rounded-2xl flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-slate-400">Today's Schedule</span>
+            <div className="p-1.5 rounded-lg bg-teal-50 text-teal-600">
+              <Calendar className="h-4 w-4" />
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-slate-800 capitalize">
-              {todayRequest ? todayRequest.status : "No Draft"}
-            </span>
-            <span className="text-[10px] text-slate-400 font-medium mt-0.5">
-              {todayRequest ? `${todayRequest.doctorCount || 0} doctors scheduled` : "Not prepared yet"}
-            </span>
-          </div>
-        </div>
-
-        {/* Submitted Card */}
-        <div className="bg-white border border-[#D9D9D9] p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
-          <div className="flex justify-between items-center text-amber-500">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Submitted Requests</span>
-            <Clock className="h-4.5 w-4.5" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xl font-bold text-slate-850">{submittedCount}</span>
-            <span className="text-[10px] text-slate-400 font-medium mt-0.5">Pending processing</span>
+          <div>
+            <div className="text-base font-bold text-slate-800 capitalize">
+              {todayRequest ? todayRequest.status : "No Schedule"}
+            </div>
           </div>
         </div>
 
-        {/* Completed Card */}
-        <div className="bg-white border border-[#D9D9D9] p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
-          <div className="flex justify-between items-center text-teal-600">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Completed Posters</span>
-            <FileCheck className="h-4.5 w-4.5" />
+        {/* Departments */}
+        <div className="bg-white border border-slate-200/70 p-4 rounded-2xl flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-slate-400">Departments</span>
+            <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+              <Building2 className="h-4 w-4" />
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xl font-bold text-slate-850">{completedCount}</span>
-            <span className="text-[10px] text-slate-400 font-medium mt-0.5">Finished history</span>
+          <div>
+            <div className="text-2xl font-bold text-slate-900 tracking-tight">{departmentsCount}</div>
           </div>
         </div>
 
-        {/* Active Doctors Card */}
-        <div className="bg-white border border-[#D9D9D9] p-4 rounded-2xl flex flex-col gap-2 shadow-xs">
-          <div className="flex justify-between items-center text-teal-600">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Active Doctors</span>
-            <UserCheck className="h-4.5 w-4.5" />
+        {/* Completed Posters */}
+        <div className="bg-white border border-slate-200/70 p-4 rounded-2xl flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-slate-400">Completed</span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xl font-bold text-slate-850">{activeDoctorsCount}</span>
-            <span className="text-[10px] text-slate-400 font-medium mt-0.5">Available for scheduling</span>
+          <div>
+            <div className="text-2xl font-bold text-slate-900 tracking-tight">{completedCount}</div>
+          </div>
+        </div>
+
+        {/* Active Doctors */}
+        <div className="bg-white border border-slate-200/70 p-4 rounded-2xl flex flex-col justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-slate-400">Active Doctors</span>
+            <div className="p-1.5 rounded-lg bg-slate-100 text-slate-600">
+              <Users className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="text-2xl font-bold text-slate-900 tracking-tight">{activeDoctorsCount}</div>
           </div>
         </div>
       </div>
 
       {/* Recent Requests Section */}
-      <div className="flex flex-col gap-3">
-        <div className="flex justify-between items-center px-1">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-            Recent Requests Log
-          </h3>
+      <div className="bg-white border border-slate-200/70 rounded-2xl p-5 shadow-2xs flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-slate-900 tracking-tight">Recent Requests</h2>
           <Link
             href="/designer/requests"
-            className="text-xs font-bold text-teal-600 hover:text-teal-700 flex items-center gap-0.5 cursor-pointer"
+            className="text-xs font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-0.5 transition-colors cursor-pointer"
           >
-            <span>View All</span>
-            <ChevronRight className="h-3 w-3" />
+            <span>View all</span>
+            <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
         {recentRequests.length === 0 ? (
-          <div className="bg-white border border-[#D9D9D9] rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
-            <div className="p-3.5 rounded-full bg-teal-50/40 text-teal-600">
-              <TrendingUp className="h-6 w-6" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <h4 className="font-bold text-slate-800 text-sm">No Poster Requests Found</h4>
-              <p className="text-xs text-slate-400 max-w-[240px] leading-relaxed">
-                When staff members submit doctor availability requests, they will show up here.
-              </p>
-            </div>
+          <div className="py-10 flex flex-col items-center justify-center text-center gap-2">
+            <FileText className="h-8 w-8 text-slate-300 stroke-[1.5]" />
+            <span className="text-xs font-medium text-slate-400">No requests submitted yet</span>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {recentRequests.map((request) => (
-              <Link
-                key={request.date}
-                href={`/designer/requests/${request.date}`}
-                className="bg-white hover:bg-teal-50/20 border border-[#D9D9D9] rounded-2xl p-4 flex items-center justify-between gap-4 text-left transition-all active:scale-[0.99] cursor-pointer shadow-xs"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-teal-50/70 text-teal-600 shrink-0">
-                    <Calendar className="h-5 w-5" />
-                  </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-bold text-slate-800">
-                      {new Date(request.date).toLocaleDateString("en-US", {
-                        weekday: "short",
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        By {request.createdByName || "Staff"}
+          <div className="divide-y divide-slate-100">
+            {recentRequests.map((request) => {
+              const reqDate = new Date(request.date).toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+
+              return (
+                <Link
+                  key={request.date}
+                  href={`/designer/requests/${request.date}`}
+                  className="py-3 flex items-center justify-between gap-4 group cursor-pointer transition-colors first:pt-0 last:pb-0"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-slate-800 group-hover:text-teal-600 transition-colors">
+                        {reqDate}
                       </span>
-                      <span className="text-[10px] text-slate-400 font-semibold bg-slate-50 border border-[#D9D9D9] px-1.5 py-0.5 rounded">
-                        {request.doctorCount || 0} Doctors
-                      </span>
-                      {/* Status Badge */}
-                      <span
-                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                          request.status === "completed"
-                            ? "bg-teal-100/50 text-teal-700"
-                            : request.status === "processing"
-                            ? "bg-blue-50 text-blue-700 border border-blue-100"
-                            : request.status === "submitted"
-                            ? "bg-amber-50 text-amber-700 border border-amber-100"
-                            : "bg-slate-50 text-slate-500"
-                        }`}
-                      >
-                        {request.status}
-                      </span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {request.createdByName && request.createdByName !== "Staff" && (
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            {request.createdByName}
+                          </span>
+                        )}
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          {request.doctorCount || 0} doctors
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-slate-400 shrink-0" />
-              </Link>
-            ))}
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-md capitalize ${
+                        request.status === "completed"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
+                          : request.status === "processing"
+                          ? "bg-blue-50 text-blue-700 border border-blue-200/60"
+                          : request.status === "submitted"
+                          ? "bg-amber-50 text-amber-700 border border-amber-200/60"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      {request.status}
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
     </div>
   );
 }
+
+

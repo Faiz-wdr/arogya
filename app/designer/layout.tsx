@@ -55,18 +55,18 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
   ];
 
   return (
-    <div className="flex min-h-screen bg-teal-50/8 font-sans">
+    <div className="flex min-h-screen bg-slate-50/60 font-sans text-slate-900 antialiased">
       {/* 1. Desktop Left Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-[#D9D9D9] h-screen sticky top-0 justify-between py-6 px-4 shrink-0 shadow-xs">
+      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-slate-200/70 h-screen sticky top-0 justify-between py-6 px-4 shrink-0 shadow-2xs">
         <div className="flex flex-col gap-8">
           {/* Logo Header */}
-          <div className="flex items-center gap-2.5 px-2">
-            <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-teal-50 overflow-hidden">
-              <img src="/favicon.svg" alt="Arogya Logo" className="h-6 w-6 object-contain" />
+          <div className="flex items-center gap-3 px-2">
+            <div className="flex items-center justify-center h-9 w-9 rounded-xl bg-teal-50 border border-teal-100/80 overflow-hidden shrink-0">
+              <img src="/favicon.svg" alt="Arogya Logo" className="h-5 w-5 object-contain" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold text-slate-900 leading-tight">Arogya Portal</span>
-              <span className="text-[10px] text-teal-600 font-bold uppercase tracking-wider">Designer Mode</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-bold text-slate-900 leading-tight">Arogya</span>
+              <span className="text-[10px] text-teal-600 font-semibold tracking-wide">Designer Portal</span>
             </div>
           </div>
 
@@ -79,13 +79,13 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 active:scale-[0.98] cursor-pointer ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 cursor-pointer ${
                     isActive
-                      ? "bg-teal-50/50 text-teal-600"
+                      ? "bg-teal-50 text-teal-700 font-bold"
                       : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                   }`}
                 >
-                  <Icon className="h-4.5 w-4.5" />
+                  <Icon className="h-4 w-4" />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -94,17 +94,17 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
         </div>
 
         {/* Footer Log Out */}
-        <div className="flex flex-col gap-4 border-t border-[#D9D9D9] pt-4 px-2">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs font-bold text-slate-800">{profile.name}</span>
+        <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 px-2">
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs font-bold text-slate-800 truncate">{profile.name}</span>
             <span className="text-[10px] text-slate-400 font-medium truncate">{profile.email}</span>
           </div>
           <button
             type="button"
             onClick={logout}
-            className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-semibold text-xs rounded-xl py-2.5 flex items-center justify-center gap-2 transition-all cursor-pointer"
+            className="w-full bg-slate-50 hover:bg-red-50 text-slate-600 hover:text-red-600 font-semibold text-xs rounded-xl py-2 flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200/60 hover:border-red-150"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className="h-3.5 w-3.5" />
             <span>Sign Out</span>
           </button>
         </div>
@@ -113,31 +113,31 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
       {/* 2. Main Content Container */}
       <div className="flex-1 flex flex-col min-w-0 pb-20 md:pb-6">
         {/* Mobile Top Header */}
-        <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-[#D9D9D9] shadow-xs md:hidden">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-teal-50 overflow-hidden">
-              <img src="/favicon.svg" alt="Arogya Logo" className="h-5 w-5 object-contain" />
+        <header className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200/70 shadow-2xs md:hidden">
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-teal-50 border border-teal-100 overflow-hidden">
+              <img src="/favicon.svg" alt="Arogya Logo" className="h-4.5 w-4.5 object-contain" />
             </div>
-            <span className="text-base font-bold text-slate-900 tracking-tight">Arogya Designer</span>
+            <span className="text-sm font-bold text-slate-900 tracking-tight">Designer Portal</span>
           </div>
           <button
             type="button"
             onClick={logout}
-            className="p-2 rounded-xl text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
             title="Sign Out"
           >
-            <LogOut className="h-4.5 w-4.5" />
+            <LogOut className="h-4 w-4" />
           </button>
         </header>
 
         {/* Viewport Content */}
-        <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-4 md:py-6">
+        <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-5 md:py-8">
           {children}
         </main>
       </div>
 
       {/* 3. Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#D9D9D9] shadow-lg px-2 py-2 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/80 shadow-lg px-2 py-1.5 md:hidden">
         <div className="flex items-center justify-around">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -147,15 +147,15 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer ${
+                className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl transition-all duration-150 cursor-pointer ${
                   isActive
                     ? "text-teal-600 font-bold"
                     : "text-slate-400 hover:text-slate-600"
                 }`}
               >
-                <Icon className="h-5 w-5" />
-                <span className="text-[9px] tracking-wide uppercase font-semibold">
-                  {item.label.split(" ")[0]} {/* Shorten "Staff Users" to "Staff" */}
+                <Icon className="h-4.5 w-4.5" />
+                <span className="text-[9px] font-semibold">
+                  {item.label.split(" ")[0]}
                 </span>
               </Link>
             );

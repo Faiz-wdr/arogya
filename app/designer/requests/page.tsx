@@ -50,7 +50,6 @@ export default function PosterRequestsPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-bold text-slate-900">Poster Requests Log</h2>
-          <p className="text-xs text-slate-500">Track, edit, and update the status of schedule posters</p>
         </div>
 
         <button
