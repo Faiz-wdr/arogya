@@ -79,20 +79,23 @@ export default function DesignerDashboard() {
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Dashboard</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/designer/requests"
-            className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs h-9 cursor-pointer"
-          >
-            <Plus className="h-3.5 w-3.5 text-slate-500" />
-            <span>New Schedule</span>
-          </Link>
-          <Link
-            href="/designer/poster"
-            className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs h-9 cursor-pointer"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Create Poster</span>
-          </Link>
+          {(() => {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const yyyy = tomorrow.getFullYear();
+            const mm = String(tomorrow.getMonth() + 1).padStart(2, "0");
+            const dd = String(tomorrow.getDate()).padStart(2, "0");
+            const tomorrowStr = `${yyyy}-${mm}-${dd}`;
+            return (
+              <Link
+                href={`/designer/requests/${tomorrowStr}`}
+                className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-2xs h-9 cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>New Schedule</span>
+              </Link>
+            );
+          })()}
         </div>
       </div>
 

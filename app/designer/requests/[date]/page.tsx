@@ -133,11 +133,7 @@ function RequestDetailsContent() {
 
   // Bulk Import States
   const [pastedText, setPastedText] = useState("");
-  const [importCheck, setImportCheck] = useState<{
-    showDialog: boolean;
-    parsedDate: string | null;
-    parsedItems: any[];
-  } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
@@ -354,77 +350,32 @@ function RequestDetailsContent() {
     setError(null);
     try {
       const parsed = parseSchedule(pastedText, departments, doctors);
-      setImportCheck({
-        showDialog: true,
-        parsedDate: parsed.date,
-        parsedItems: parsed.items,
-      });
+      const parsedItemsToLoad = convertParsedToScheduleItems(parsed.items);
+
+      // Auto-inject Physiotherapy service if weekday
+      const dateObj = new Date(dateString);
+      const isWeekday = dateObj.getDay() !== 0; // 0 is Sunday
+      if (isWeekday && showPhysiotherapy) {
+        parsedItemsToLoad.push({
+          id: "fixed_physio",
+          doctorId: null,
+          departmentId: "dept_physiotherapy",
+          startTime: "09:00",
+          endTime: "17:00",
+          displayOrder: parsedItemsToLoad.length,
+          itemType: "fixed_service",
+        });
+      }
+
+      setScheduleItems(parsedItemsToLoad);
+      setPastedText("");
+      setIsPosterOutdated(true);
+      setToastMessage("Schedule imported");
+      setTimeout(() => setToastMessage(null), 3000);
     } catch (err: any) {
       console.error(err);
       setError(err?.message || "Failed to parse schedule. Please try again.");
     }
-  };
-
-  const handleReplaceSchedule = () => {
-    if (!importCheck) return;
-    const parsedItemsToLoad = convertParsedToScheduleItems(importCheck.parsedItems);
-
-    // Auto-inject Physiotherapy service if weekday
-    const dateObj = new Date(dateString);
-    const isWeekday = dateObj.getDay() !== 0; // 0 is Sunday
-    if (isWeekday && showPhysiotherapy) {
-      parsedItemsToLoad.push({
-        id: "fixed_physio",
-        doctorId: null,
-        departmentId: "dept_physiotherapy",
-        startTime: "09:00",
-        endTime: "17:00",
-        displayOrder: parsedItemsToLoad.length,
-        itemType: "fixed_service",
-      });
-    }
-
-    setScheduleItems(parsedItemsToLoad);
-    setPastedText("");
-    setImportCheck(null);
-    setIsPosterOutdated(true);
-  };
-
-  const handleMergeSchedule = () => {
-    if (!importCheck) return;
-
-    // Filter out physiotherapy fixed service to avoid duplication
-    const filteredExisting = scheduleItems.filter(item => item.departmentId !== "dept_physiotherapy");
-    const newParsedItems = convertParsedToScheduleItems(importCheck.parsedItems);
-
-    // Merge
-    let merged = [...filteredExisting, ...newParsedItems];
-
-    // Re-sort displayOrder
-    merged = merged.map((item, index) => ({
-      ...item,
-      displayOrder: index
-    }));
-
-    // Append fixed service if weekday and showPhysiotherapy is enabled
-    const dateObj = new Date(dateString);
-    const isWeekday = dateObj.getDay() !== 0;
-    if (isWeekday && showPhysiotherapy && !merged.some(item => item.itemType === "fixed_service")) {
-      merged.push({
-        id: "fixed_physio",
-        doctorId: null,
-        departmentId: "dept_physiotherapy",
-        startTime: "09:00",
-        endTime: "17:00",
-        displayOrder: merged.length,
-        itemType: "fixed_service",
-      });
-    }
-
-    setScheduleItems(merged);
-    setPastedText("");
-    setImportCheck(null);
-    setIsPosterOutdated(true);
   };
 
   // Handle Clear All Items
@@ -829,11 +780,28 @@ function RequestDetailsContent() {
           )}
 
 
-          {/* Date Header Title */}
-          <div className="flex flex-col gap-1.5 px-1">
+          {/* Date Header Title & Date Selection */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
             <h2 className="text-xl font-bold text-slate-900">
               {getEnglishDateString(dateString)}
             </h2>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-400">Select Date:</span>
+              <div className="relative flex items-center">
+                <Calendar className="absolute left-3 h-4 w-4 text-teal-600 pointer-events-none" />
+                <input
+                  type="date"
+                  value={dateString}
+                  onChange={(e) => {
+                    if (e.target.value && e.target.value !== dateString) {
+                      router.push(`/designer/requests/${e.target.value}`);
+                    }
+                  }}
+                  className="pl-9 pr-3 py-1.5 rounded-xl border border-[#d9d9d9] bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 cursor-pointer shadow-xs h-9"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Two Column Layout Grid */}
@@ -1373,60 +1341,13 @@ function RequestDetailsContent() {
         existingItems={scheduleItems}
       />
 
-      {/* Bulk Import Options Modal */}
-      {importCheck && importCheck.showDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-[#d9d9d9] p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
-            <div className="h-12 w-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
-              <Calendar className="h-6 w-6 text-teal-600" />
-            </div>
-
-            <div className="flex flex-col gap-1.5 font-sans">
-              <h3 className="font-bold text-slate-900 text-base">Import Options</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Choose how you want to add the {importCheck.parsedItems.length} parsed doctor entries to the current schedule.
-              </p>
-
-              {importCheck.parsedDate && importCheck.parsedDate !== dateString && (
-                <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100 text-[10px] text-amber-850 font-semibold text-left leading-relaxed flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Date mismatch warning:</strong> The pasted text date ({importCheck.parsedDate}) does not match the schedule date ({dateString}). Overwriting or merging will apply to {dateString}.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="w-full flex flex-col gap-2 mt-2">
-              <button
-                type="button"
-                onClick={handleMergeSchedule}
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11 shadow-xs"
-              >
-                Merge with Current Schedule
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm("Are you sure you want to completely overwrite the current schedule items on screen with these new items?")) {
-                    handleReplaceSchedule();
-                  }
-                }}
-                className="w-full bg-red-50 hover:bg-red-100 text-red-650 border border-red-100 font-bold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
-              >
-                Replace Current Schedule
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setImportCheck(null)}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-650 font-semibold text-xs rounded-xl py-3 transition-colors cursor-pointer h-11"
-              >
-                Cancel
-              </button>
-            </div>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900/90 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-xl backdrop-blur-md animate-scaleUp border border-slate-700/50">
+          <div className="h-6 w-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <CheckCircle className="h-4 w-4" />
           </div>
+          <span>{toastMessage}</span>
         </div>
       )}
 

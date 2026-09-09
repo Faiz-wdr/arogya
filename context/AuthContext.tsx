@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 interface UserProfile {
@@ -33,14 +33,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeDoc: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+
       if (firebaseUser) {
-        // Fetch user profile from Firestore
+        // Fetch and listen to user profile in Firestore
         const userDocRef = doc(db, "users", firebaseUser.uid);
         try {
           let userDoc = await getDoc(userDocRef);
-          
+
           if (!userDoc.exists()) {
             // Auto-provision user as staff during development/testing
             const defaultProfile: UserProfile = {
@@ -51,25 +58,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               createdAt: serverTimestamp(),
             };
             await setDoc(userDocRef, defaultProfile);
-            userDoc = await getDoc(userDocRef);
           }
 
-          if (userDoc.exists()) {
-            setProfile(userDoc.data() as UserProfile);
-          } else {
-            setProfile(null);
-          }
+          // Real-time listener for user profile changes
+          unsubscribeDoc = onSnapshot(
+            userDocRef,
+            (snapshot) => {
+              if (snapshot.exists()) {
+                setProfile(snapshot.data() as UserProfile);
+              } else {
+                setProfile(null);
+              }
+              setLoading(false);
+            },
+            (error) => {
+              console.error("Error listening to profile changes:", error);
+              setLoading(false);
+            }
+          );
         } catch (error) {
           console.error("Error fetching user profile:", error);
           setProfile(null);
+          setLoading(false);
         }
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+      }
+    };
   }, []);
 
   const logout = async () => {
