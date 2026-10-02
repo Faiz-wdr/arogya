@@ -21,6 +21,7 @@ import {
 } from "@/lib/services/db";
 import { getEnglishDateString, getMalayalamDateString, getMalayalamMVMDateString } from "@/lib/utils/dateUtils";
 import { parseSchedule } from "@/lib/utils/scheduleParser";
+import { unicodeToMVM } from "@/lib/utils/malayalamMVMConverter";
 import AddDoctorModal from "@/components/AddDoctorModal";
 import {
   Calendar,
@@ -47,7 +48,8 @@ import {
   X,
   AlertTriangle,
   GripVertical,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Sparkles
 } from "lucide-react";
 
 // Helper to format time (e.g. "09:00" -> "9:00 AM")
@@ -320,10 +322,11 @@ function RequestDetailsContent() {
 
   // Open Master Doctor Add Modal for detected new doctor
   const handleOpenAddMasterDoctor = (item: any) => {
+    const docName = item.doctorNameMalayalamUnicode || item.doctorNameEnglish || "";
     setMasterDocTargetItem(item);
     setMasterDocDepartmentId(item.departmentId && departments.some(d => d.id === item.departmentId) ? item.departmentId : (departments[0]?.id || ""));
-    setMasterDocName(item.doctorNameMalayalamUnicode || item.doctorNameEnglish || "");
-    setMasterDocMVM(item.doctorNameMalayalamMVM || "");
+    setMasterDocName(docName);
+    setMasterDocMVM(item.doctorNameMalayalamMVM || unicodeToMVM(docName));
     setMasterDocQualification(item.doctorQualificationEnglish || "");
     setMasterDocError(null);
     setIsAddMasterDoctorModalOpen(true);
@@ -560,6 +563,7 @@ function RequestDetailsContent() {
           endTime: item.endTime || "13:00",
           itemType: "doctor" as const,
           doctorNameMalayalamUnicode: item.doctorNameUnicode || "New Doctor",
+          doctorNameMalayalamMVM: unicodeToMVM(item.doctorNameUnicode || ""),
           doctorQualificationEnglish: item.qualification || "",
           displayOrder: index
         };
@@ -1625,7 +1629,13 @@ function RequestDetailsContent() {
                 <input
                   type="text"
                   value={masterDocName}
-                  onChange={(e) => setMasterDocName(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMasterDocName(val);
+                    if (!masterDocMVM || masterDocMVM === unicodeToMVM(masterDocName)) {
+                      setMasterDocMVM(unicodeToMVM(val));
+                    }
+                  }}
                   placeholder="e.g. ഡോ. മേബിൾ ജോൺ"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 bg-white h-10"
                   required
@@ -1638,11 +1648,25 @@ function RequestDetailsContent() {
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Doctor Name in MVM Code
                   </label>
-                  {!masterDocMVM && (
-                    <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                      Required for poster
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (masterDocName) {
+                          setMasterDocMVM(unicodeToMVM(masterDocName));
+                        }
+                      }}
+                      className="text-[10px] text-teal-700 hover:text-teal-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Sparkles className="w-3 h-3 text-teal-600" />
+                      Auto Generate MVM
+                    </button>
+                    {!masterDocMVM && (
+                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                        Required for poster
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <input
                   type="text"

@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Department, Doctor, ScheduleItem } from "@/lib/services/db";
-import { X, AlertTriangle, Info } from "lucide-react";
+import { X, AlertTriangle, Info, Sparkles } from "lucide-react";
+import { unicodeToMVM } from "@/lib/utils/malayalamMVMConverter";
 
 function isTimeOverlapping(s1: string, e1: string, s2: string, e2: string): boolean {
   const toMins = (t: string) => {
@@ -63,6 +64,7 @@ export default function AddDoctorModal({
   // Custom doctor state
   const [isCustomDoctor, setIsCustomDoctor] = useState(false);
   const [customDoctorName, setCustomDoctorName] = useState("");
+  const [customDoctorMVM, setCustomDoctorMVM] = useState("");
   const [customDoctorQualification, setCustomDoctorQualification] = useState("");
 
   // Filter doctors based on selected department
@@ -78,10 +80,12 @@ export default function AddDoctorModal({
       if (editingItem.doctorId === null && editingItem.itemType === "doctor") {
         setIsCustomDoctor(true);
         setCustomDoctorName(editingItem.doctorNameMalayalamUnicode || "");
+        setCustomDoctorMVM(editingItem.doctorNameMalayalamMVM || unicodeToMVM(editingItem.doctorNameMalayalamUnicode || ""));
         setCustomDoctorQualification(editingItem.doctorQualificationEnglish || "");
       } else {
         setIsCustomDoctor(false);
         setCustomDoctorName("");
+        setCustomDoctorMVM("");
         setCustomDoctorQualification("");
       }
     } else {
@@ -93,6 +97,7 @@ export default function AddDoctorModal({
       setEndTime("13:00");
       setIsCustomDoctor(false);
       setCustomDoctorName("");
+      setCustomDoctorMVM("");
       setCustomDoctorQualification("");
     }
     setError(null);
@@ -202,6 +207,7 @@ export default function AddDoctorModal({
       itemType: "doctor",
       ...(isCustomDoctor ? {
         doctorNameMalayalamUnicode: customDoctorName,
+        doctorNameMalayalamMVM: customDoctorMVM || unicodeToMVM(customDoctorName),
         doctorQualificationEnglish: customDoctorQualification,
       } : {})
     };
@@ -320,10 +326,44 @@ export default function AddDoctorModal({
                   id="customName"
                   type="text"
                   value={customDoctorName}
-                  onChange={(e) => setCustomDoctorName(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setCustomDoctorName(val);
+                    if (!customDoctorMVM || customDoctorMVM === unicodeToMVM(customDoctorName)) {
+                      setCustomDoctorMVM(unicodeToMVM(val));
+                    }
+                  }}
                   placeholder="e.g. ഡോ. പുതിയ ഡോക്ടർ"
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-sm text-slate-900 bg-white h-11"
                   required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between items-center">
+                  <label htmlFor="customMVM" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Custom Doctor MVM (Optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customDoctorName) {
+                        setCustomDoctorMVM(unicodeToMVM(customDoctorName));
+                      }
+                    }}
+                    className="text-[10px] text-teal-700 hover:text-teal-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Sparkles className="w-3 h-3 text-teal-600" />
+                    Auto MVM
+                  </button>
+                </div>
+                <input
+                  id="customMVM"
+                  type="text"
+                  value={customDoctorMVM}
+                  onChange={(e) => setCustomDoctorMVM(e.target.value)}
+                  placeholder="e.g. tUm. cmlp¬ IrjvW³"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-sm text-slate-900 bg-white h-11 font-mono"
                 />
               </div>
 
