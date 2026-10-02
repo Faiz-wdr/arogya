@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Department, Doctor, ScheduleItem } from "@/lib/services/db";
-import { X, AlertTriangle, Info, Sparkles } from "lucide-react";
+import { X, AlertTriangle, Info } from "lucide-react";
 import { unicodeToMVM } from "@/lib/utils/malayalamMVMConverter";
 
 function isTimeOverlapping(s1: string, e1: string, s2: string, e2: string): boolean {
@@ -340,23 +340,9 @@ export default function AddDoctorModal({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <div className="flex justify-between items-center">
-                  <label htmlFor="customMVM" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Custom Doctor MVM (Optional)
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (customDoctorName) {
-                        setCustomDoctorMVM(unicodeToMVM(customDoctorName));
-                      }
-                    }}
-                    className="text-[10px] text-teal-700 hover:text-teal-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    <Sparkles className="w-3 h-3 text-teal-600" />
-                    Auto MVM
-                  </button>
-                </div>
+                <label htmlFor="customMVM" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Custom Doctor MVM (Optional)
+                </label>
                 <input
                   id="customMVM"
                   type="text"

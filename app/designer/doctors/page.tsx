@@ -24,8 +24,7 @@ import {
   Filter,
   Upload,
   Download,
-  Trash2,
-  Sparkles
+  Trash2
 } from "lucide-react";
 import { unicodeToMVM } from "@/lib/utils/malayalamMVMConverter";
 
@@ -80,7 +79,6 @@ export default function DoctorsPage() {
   const [isUploading, setUploading] = useState(false);
   const [uploadSuccessMessage, setUploadSuccessMessage] = useState<string | null>(null);
   const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(null);
-  const [isBatchFillingMVM, setIsBatchFillingMVM] = useState(false);
 
   // Helper to parse CSV string to matrix
   const parseCSV = (text: string): string[][] => {
@@ -296,61 +294,6 @@ export default function DoctorsPage() {
     loadData();
   }, []);
 
-  // 1-Click Auto-Fill MVM for all doctors and departments missing it
-  const handleBatchFillMVM = async () => {
-    const missingDocs = doctors.filter((d) => !d.nameMalayalamMVM && d.nameEnglish);
-    const missingDepts = departments.filter((d) => !d.nameMalayalamMVM && d.nameEnglish);
-
-    if (missingDocs.length === 0 && missingDepts.length === 0) {
-      alert("All active doctors and departments already have MVM font codes configured!");
-      return;
-    }
-
-    if (
-      !window.confirm(
-        `Auto-generate MVM codes for ${missingDocs.length} doctor(s) and ${missingDepts.length} department(s)?`
-      )
-    ) {
-      return;
-    }
-
-    setIsBatchFillingMVM(true);
-    try {
-      for (const docItem of missingDocs) {
-        await saveDoctor(docItem.id, {
-          departmentId: docItem.departmentId,
-          nameEnglish: docItem.nameEnglish,
-          nameMalayalamUnicode: docItem.nameMalayalamUnicode || docItem.nameEnglish,
-          nameMalayalamMVM: unicodeToMVM(docItem.nameMalayalamUnicode || docItem.nameEnglish),
-          qualificationEnglish: docItem.qualificationEnglish,
-          qualificationMalayalamUnicode: docItem.qualificationMalayalamUnicode || docItem.qualificationEnglish,
-          qualificationMalayalamMVM: docItem.qualificationMalayalamMVM || "",
-          isActive: docItem.isActive,
-          aliases: docItem.aliases || [],
-        });
-      }
-
-      for (const deptItem of missingDepts) {
-        await saveDepartment(deptItem.id, {
-          nameEnglish: deptItem.nameEnglish,
-          nameMalayalamUnicode: deptItem.nameMalayalamUnicode || deptItem.nameEnglish,
-          nameMalayalamMVM: unicodeToMVM(deptItem.nameMalayalamUnicode || deptItem.nameEnglish),
-          displayOrder: deptItem.displayOrder,
-          isActive: deptItem.isActive,
-          aliases: deptItem.aliases || [],
-        });
-      }
-
-      await loadData();
-      alert(`Successfully generated MVM font codes for ${missingDocs.length} doctor(s) and ${missingDepts.length} department(s)!`);
-    } catch (err: any) {
-      console.error("Batch MVM generation failed:", err);
-      alert("Failed to auto-generate MVM: " + (err.message || err));
-    } finally {
-      setIsBatchFillingMVM(false);
-    }
-  };
-
   // Open modal for adding
   const handleOpenAdd = () => {
     setEditingDoc(null);
@@ -537,23 +480,6 @@ export default function DoctorsPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap shrink-0">
-          {doctors.some((d) => !d.nameMalayalamMVM) || departments.some((d) => !d.nameMalayalamMVM) ? (
-            <button
-              type="button"
-              disabled={isBatchFillingMVM}
-              onClick={handleBatchFillMVM}
-              className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs transition-all h-10"
-              title="Automatically generate MVM codes for all records missing them"
-            >
-              <Sparkles className="h-4 w-4" />
-              <span>
-                {isBatchFillingMVM
-                  ? "Generating..."
-                  : `Auto-Fill MVM (${doctors.filter((d) => !d.nameMalayalamMVM).length + departments.filter((d) => !d.nameMalayalamMVM).length})`}
-              </span>
-            </button>
-          ) : null}
-
           <button
             type="button"
             onClick={downloadSampleCSV}
@@ -830,24 +756,9 @@ export default function DoctorsPage() {
 
               {/* Malayalam MVM Name */}
               <div className="flex flex-col gap-1.5">
-                <div className="flex justify-between items-center">
-                  <label htmlFor="docNameMalMvm" className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>Doctor Name MVM</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (nameEnglish.trim()) {
-                        setNameMalayalamMVM(unicodeToMVM(nameEnglish));
-                      }
-                    }}
-                    className="text-[10px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-150 px-2 py-0.5 rounded-md flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                    title="Auto generate MVM code from Malayalam name"
-                  >
-                    <Sparkles className="h-3 w-3 text-teal-600" />
-                    <span>Auto Generate MVM</span>
-                  </button>
-                </div>
+                <label htmlFor="docNameMalMvm" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Doctor Name MVM
+                </label>
                 <input
                   id="docNameMalMvm"
                   type="text"
@@ -1084,24 +995,9 @@ export default function DoctorsPage() {
 
                   {/* Malayalam MVM Value */}
                   <div className="flex flex-col gap-1.5">
-                    <div className="flex justify-between items-center">
-                      <label htmlFor="deptNameMalMvm" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Malayalam MVM (Optional)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (deptNameEnglish.trim()) {
-                            setDeptNameMalayalamMVM(unicodeToMVM(deptNameEnglish));
-                          }
-                        }}
-                        className="text-[9px] font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-150 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                        title="Auto generate MVM code from Department name"
-                      >
-                        <Sparkles className="h-2.5 w-2.5 text-teal-600" />
-                        <span>Auto MVM</span>
-                      </button>
-                    </div>
+                    <label htmlFor="deptNameMalMvm" className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Malayalam MVM (Optional)
+                    </label>
                     <input
                       id="deptNameMalMvm"
                       type="text"
@@ -1315,23 +1211,9 @@ export default function DoctorsPage() {
             </div>
             
             <div className="flex flex-col gap-1.5">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Malayalam MVM (Optional)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (inlineDeptNameEnglish) {
-                      setInlineDeptNameMalayalamMVM(unicodeToMVM(inlineDeptNameEnglish));
-                    }
-                  }}
-                  className="text-[10px] text-teal-700 hover:text-teal-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <Sparkles className="w-3 h-3 text-teal-600" />
-                  Auto MVM
-                </button>
-              </div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Malayalam MVM (Optional)
+              </label>
               <input
                 type="text"
                 placeholder="e.g. P\\dÄ H.¸n."

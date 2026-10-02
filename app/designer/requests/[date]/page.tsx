@@ -48,8 +48,7 @@ import {
   X,
   AlertTriangle,
   GripVertical,
-  Image as ImageIcon,
-  Sparkles
+  Image as ImageIcon
 } from "lucide-react";
 
 // Helper to format time (e.g. "09:00" -> "9:00 AM")
@@ -1648,25 +1647,11 @@ function RequestDetailsContent() {
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Doctor Name in MVM Code
                   </label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (masterDocName) {
-                          setMasterDocMVM(unicodeToMVM(masterDocName));
-                        }
-                      }}
-                      className="text-[10px] text-teal-700 hover:text-teal-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                    >
-                      <Sparkles className="w-3 h-3 text-teal-600" />
-                      Auto Generate MVM
-                    </button>
-                    {!masterDocMVM && (
-                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                        Required for poster
-                      </span>
-                    )}
-                  </div>
+                  {!masterDocMVM && (
+                    <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                      Required for poster
+                    </span>
+                  )}
                 </div>
                 <input
                   type="text"
