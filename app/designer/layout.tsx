@@ -51,7 +51,6 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
     { label: "Requests", href: "/designer/requests", icon: FileText },
     { label: "Poster", href: "/designer/poster", icon: ImageIcon },
     { label: "Doctors & Dept", href: "/designer/doctors", icon: UserCheck },
-    { label: "Staff Users", href: "/designer/staff", icon: Users },
   ];
 
   return (

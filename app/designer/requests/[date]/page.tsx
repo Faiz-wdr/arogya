@@ -16,7 +16,8 @@ import {
   updatePosterRequestStatus,
   saveGeneratedPosterMetadata,
   fetchPosterSettings,
-  savePosterSettings
+  savePosterSettings,
+  saveDoctor
 } from "@/lib/services/db";
 import { getEnglishDateString, getMalayalamDateString, getMalayalamMVMDateString } from "@/lib/utils/dateUtils";
 import { parseSchedule } from "@/lib/utils/scheduleParser";
@@ -131,6 +132,17 @@ function RequestDetailsContent() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ScheduleItem | null>(null);
 
+  // Add Master Doctor Modal State (for New Doctor Detected)
+  const [isAddMasterDoctorModalOpen, setIsAddMasterDoctorModalOpen] = useState(false);
+  const [masterDocTargetItem, setMasterDocTargetItem] = useState<any | null>(null);
+  const [masterDocDepartmentId, setMasterDocDepartmentId] = useState("");
+  const [masterDocName, setMasterDocName] = useState("");
+  const [masterDocMVM, setMasterDocMVM] = useState("");
+  const [masterDocQualification, setMasterDocQualification] = useState("");
+  const [masterDocSaving, setMasterDocSaving] = useState(false);
+  const [masterDocError, setMasterDocError] = useState<string | null>(null);
+  const [dismissedNewDoctorBanner, setDismissedNewDoctorBanner] = useState(false);
+
   // Bulk Import States
   const [pastedText, setPastedText] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -208,10 +220,31 @@ function RequestDetailsContent() {
         departmentNameMalayalamMVM: dept ? dept.nameMalayalamMVM : (item.departmentNameMalayalamMVM || "^nkntbmsXdm]n & dnlm_nentäj³"),
       };
     } else {
-      const docObj = doctors.find((d) => d.id === item.doctorId);
-      const dept = departments.find((d) => d.id === item.departmentId);
+      // Find doctor by ID or by matching name/aliases
+      const docObj = doctors.find((d) => {
+        if (item.doctorId && d.id === item.doctorId) return true;
+        const malName = (item.doctorNameMalayalamUnicode || "").trim().toLowerCase();
+        const engName = (item.doctorNameEnglish || "").trim().toLowerCase();
+        const dMalName = (d.nameMalayalamUnicode || "").trim().toLowerCase();
+        const dEngName = (d.nameEnglish || "").trim().toLowerCase();
+
+        const isGeneric = (name: string) => !name || name === "new doctor" || name === "unknown doctor";
+
+        if (!isGeneric(malName) && (dMalName === malName || dEngName === malName || d.aliases?.some(a => a.trim().toLowerCase() === malName))) {
+          return true;
+        }
+        if (!isGeneric(engName) && (dEngName === engName || dMalName === engName || d.aliases?.some(a => a.trim().toLowerCase() === engName))) {
+          return true;
+        }
+        return false;
+      });
+
+      const resolvedDeptId = docObj ? docObj.departmentId : item.departmentId;
+      const dept = departments.find((d) => d.id === resolvedDeptId);
       return {
         ...item,
+        doctorId: docObj ? docObj.id : item.doctorId,
+        departmentId: resolvedDeptId,
         doctorNameEnglish: docObj ? docObj.nameEnglish : (item.doctorNameEnglish || "Unknown Doctor"),
         doctorNameMalayalamUnicode: docObj ? docObj.nameMalayalamUnicode : (item.doctorNameMalayalamUnicode || ""),
         doctorNameMalayalamMVM: docObj ? docObj.nameMalayalamMVM : (item.doctorNameMalayalamMVM || ""),
@@ -255,6 +288,20 @@ function RequestDetailsContent() {
     }
   });
 
+  // Check for newly detected doctors not in master database
+  const newDoctorItems = joinedItems.filter((item) => {
+    if (item.itemType === "fixed_service") return false;
+    return !item.doctorId || !doctors.some((d) => d.id === item.doctorId);
+  });
+  const hasNewDoctors = newDoctorItems.length > 0;
+  const uniqueNewDoctorNames = Array.from(
+    new Set(
+      newDoctorItems.map((item) =>
+        (item.doctorNameMalayalamUnicode || item.doctorNameEnglish || "New Doctor").trim()
+      )
+    )
+  );
+
   // Check if any MVM data is missing in the current schedule list
   const hasMissingMVM = joinedItems.some((item) => {
     if (item.itemType === "fixed_service") {
@@ -270,6 +317,196 @@ function RequestDetailsContent() {
       );
     }
   });
+
+  // Open Master Doctor Add Modal for detected new doctor
+  const handleOpenAddMasterDoctor = (item: any) => {
+    setMasterDocTargetItem(item);
+    setMasterDocDepartmentId(item.departmentId && departments.some(d => d.id === item.departmentId) ? item.departmentId : (departments[0]?.id || ""));
+    setMasterDocName(item.doctorNameMalayalamUnicode || item.doctorNameEnglish || "");
+    setMasterDocMVM(item.doctorNameMalayalamMVM || "");
+    setMasterDocQualification(item.doctorQualificationEnglish || "");
+    setMasterDocError(null);
+    setIsAddMasterDoctorModalOpen(true);
+  };
+
+  // Open modal/action to fix missing MVM content
+  const handleOpenFixMVM = () => {
+    const errors: typeof validationErrors = [];
+    const seenDepts = new Set<string>();
+    const seenDocs = new Set<string>();
+    const missingDocs: any[] = [];
+
+    joinedItems.forEach((item) => {
+      if (item.itemType === "fixed_service") {
+        if (!item.departmentNameMalayalamMVM && !seenDepts.has(item.departmentId)) {
+          seenDepts.add(item.departmentId);
+          errors.push({
+            type: "department",
+            id: item.departmentId,
+            name: item.departmentNameEnglish || "Fixed Service Department",
+            field: "Department MVM Value",
+            path: "/designer/doctors",
+          });
+        }
+      } else {
+        if (!item.departmentNameMalayalamMVM && item.departmentId && !seenDepts.has(item.departmentId)) {
+          seenDepts.add(item.departmentId);
+          errors.push({
+            type: "department",
+            id: item.departmentId,
+            name: item.departmentNameEnglish || "Department",
+            field: "Department MVM Value",
+            path: "/designer/doctors",
+          });
+        }
+        if (!item.doctorId || !doctors.some((d) => d.id === item.doctorId)) {
+          const docKey = item.doctorNameMalayalamUnicode || item.doctorNameEnglish || item.id;
+          if (!seenDocs.has(docKey)) {
+            seenDocs.add(docKey);
+            errors.push({
+              type: "doctor",
+              id: item.id,
+              name: item.doctorNameMalayalamUnicode || item.doctorNameEnglish || "New Doctor",
+              field: "New Doctor detected (Not in database)",
+              path: "/designer/doctors",
+            });
+          }
+        } else if (item.doctorId && !seenDocs.has(item.doctorId)) {
+          const isEnglish = !/[\u0D00-\u0D7F]/.test(item.doctorNameMalayalamUnicode || "");
+          if (!isEnglish && !item.doctorNameMalayalamMVM) {
+            seenDocs.add(item.doctorId);
+            missingDocs.push(item);
+            errors.push({
+              type: "doctor",
+              id: item.doctorId,
+              name: item.doctorNameEnglish || item.doctorNameMalayalamUnicode || "Doctor",
+              field: "Doctor Name MVM",
+              path: "/designer/doctors",
+            });
+          }
+        }
+      }
+    });
+
+    if (errors.length === 1 && missingDocs.length === 1) {
+      handleOpenAddMasterDoctor(missingDocs[0]);
+    } else {
+      setValidationErrors(errors);
+      setShowValidationModal(true);
+    }
+  };
+
+  // Save new doctor into master database and link to current schedule
+  const handleSaveMasterDoctor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!masterDocDepartmentId) {
+      setMasterDocError("Please select a department.");
+      return;
+    }
+    if (!masterDocName.trim()) {
+      setMasterDocError("Please enter doctor name.");
+      return;
+    }
+
+    setMasterDocSaving(true);
+    setMasterDocError(null);
+
+    try {
+      const docId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const newDocRecord: Doctor = {
+        id: docId,
+        departmentId: masterDocDepartmentId,
+        nameEnglish: masterDocName.trim(),
+        nameMalayalamUnicode: masterDocName.trim(),
+        nameMalayalamMVM: masterDocMVM.trim(),
+        qualificationEnglish: masterDocQualification.trim(),
+        qualificationMalayalamUnicode: masterDocQualification.trim(),
+        qualificationMalayalamMVM: "",
+        isActive: true,
+        aliases: [masterDocName.trim()],
+      };
+
+      await saveDoctor(docId, newDocRecord);
+
+      // 1. Immediately update active doctors state in React
+      setDoctors((prev) => [...prev.filter((d) => d.id !== docId), newDocRecord]);
+
+      // 2. Link matching schedule item(s) to the new doctor
+      const targetId = masterDocTargetItem?.id;
+      const targetName = (masterDocTargetItem?.doctorNameMalayalamUnicode || masterDocTargetItem?.doctorNameEnglish || "").trim().toLowerCase();
+
+      const updatedSchedule = scheduleItems.map((si) => {
+        const isTarget = Boolean(targetId && si.id === targetId);
+        const siMalName = (si.doctorNameMalayalamUnicode || "").trim().toLowerCase();
+        const siEngName = (si.doctorNameEnglish || "").trim().toLowerCase();
+        const savedName = masterDocName.trim().toLowerCase();
+
+        const isSameName = Boolean(
+          !si.doctorId && targetName && targetName !== "new doctor" && targetName !== "unknown doctor" &&
+          (siMalName === targetName || siEngName === targetName)
+        );
+        const isDocNameMatch = Boolean(
+          !si.doctorId && savedName && (siMalName === savedName || siEngName === savedName)
+        );
+
+        if (isTarget || isSameName || isDocNameMatch) {
+          return {
+            ...si,
+            doctorId: docId,
+            departmentId: masterDocDepartmentId,
+            doctorNameMalayalamUnicode: masterDocName.trim(),
+            doctorNameEnglish: masterDocName.trim(),
+            doctorNameMalayalamMVM: masterDocMVM.trim(),
+            doctorQualificationEnglish: masterDocQualification.trim(),
+          };
+        }
+        return si;
+      });
+
+      setScheduleItems(updatedSchedule);
+
+      // 3. Auto-save schedule to Firestore so linking is persisted
+      try {
+        const payloadItems = updatedSchedule.map((item, index) => ({
+          doctorId: item.doctorId,
+          departmentId: item.departmentId,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          displayOrder: index,
+          itemType: item.itemType,
+          ...(item.doctorNameMalayalamUnicode ? { doctorNameMalayalamUnicode: item.doctorNameMalayalamUnicode } : {}),
+          ...(item.doctorQualificationEnglish ? { doctorQualificationEnglish: item.doctorQualificationEnglish } : {}),
+          ...(item.doctorNameEnglish ? { doctorNameEnglish: item.doctorNameEnglish } : {}),
+        }));
+        await savePosterRequest(dateString, createdBy || user?.uid || "", status, payloadItems, showPhysiotherapy);
+      } catch (saveErr) {
+        console.error("Auto-save schedule failed after adding doctor:", saveErr);
+      }
+
+      // Check if any other new doctors remain in schedule
+      const remainingNewDocs = updatedSchedule.filter(
+        item => item.itemType !== "fixed_service" && (!item.doctorId || (!doctors.some(d => d.id === item.doctorId) && item.doctorId !== docId))
+      );
+      if (remainingNewDocs.length === 0) {
+        setDismissedNewDoctorBanner(true);
+      }
+
+      // Re-fetch doctors in background to ensure database cache sync
+      fetchActiveDoctors().then((refreshedDocs) => {
+        setDoctors(refreshedDocs);
+      }).catch(console.error);
+
+      setIsPosterOutdated(true);
+      setIsAddMasterDoctorModalOpen(false);
+      setToastMessage(`Doctor "${masterDocName.trim()}" added to database!`);
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err: any) {
+      console.error("Failed to add doctor to master database:", err);
+      setMasterDocError(err?.message || "Failed to save doctor. Please try again.");
+    } finally {
+      setMasterDocSaving(false);
+    }
+  };
 
   // Handle Add Doctor (Designer Schedule Override)
   const handleAddDoctor = (newItemPayload: Omit<ScheduleItem, "id" | "createdAt" | "updatedAt">) => {
@@ -553,6 +790,9 @@ function RequestDetailsContent() {
         endTime: item.endTime,
         displayOrder: index,
         itemType: item.itemType,
+        ...(item.doctorNameMalayalamUnicode ? { doctorNameMalayalamUnicode: item.doctorNameMalayalamUnicode } : {}),
+        ...(item.doctorQualificationEnglish ? { doctorQualificationEnglish: item.doctorQualificationEnglish } : {}),
+        ...(item.doctorNameEnglish ? { doctorNameEnglish: item.doctorNameEnglish } : {}),
       }));
 
       await savePosterRequest(dateString, createdBy || user.uid, status, payloadItems, showPhysiotherapy);
@@ -595,7 +835,19 @@ function RequestDetailsContent() {
             path: "/designer/departments",
           });
         }
-        if (item.doctorId && !seenDocs.has(item.doctorId)) {
+        if (!item.doctorId || !doctors.some(d => d.id === item.doctorId)) {
+          const docKey = item.doctorNameMalayalamUnicode || item.doctorNameEnglish || item.id;
+          if (!seenDocs.has(docKey)) {
+            seenDocs.add(docKey);
+            errors.push({
+              type: "doctor",
+              id: item.id,
+              name: item.doctorNameMalayalamUnicode || item.doctorNameEnglish || "New Doctor",
+              field: "New Doctor detected (Not in database)",
+              path: "/designer/doctors",
+            });
+          }
+        } else if (item.doctorId && !seenDocs.has(item.doctorId)) {
           const isEnglish = !/[\u0D00-\u0D7F]/.test(item.doctorNameMalayalamUnicode || "");
           if (!isEnglish && !item.doctorNameMalayalamMVM) {
             seenDocs.add(item.doctorId);
@@ -746,16 +998,16 @@ function RequestDetailsContent() {
           <button
             type="button"
             onClick={() => router.push("/designer/requests")}
-            className="p-2 rounded-xl border border-[#d9d9d9] hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors"
+            className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-500 cursor-pointer transition-colors"
           >
             <ArrowLeft className="h-4.5 w-4.5" />
           </button>
-          <span className="text-xs font-semibold text-slate-400">Back to requests log</span>
+          <span className="text-xs font-semibold text-slate-400">Back</span>
         </div>
       </div>
 
       {loading ? (
-        <div className="bg-white border border-[#d9d9d9] rounded-2xl py-24 flex flex-col items-center justify-center gap-2">
+        <div className="bg-white border border-slate-100 rounded-2xl py-24 flex flex-col items-center justify-center gap-2">
           <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs text-slate-400 font-semibold mt-1">Loading workspace...</span>
         </div>
@@ -766,18 +1018,55 @@ function RequestDetailsContent() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          {/* Missing MVM Alert Banner */}
-          {hasMissingMVM && (
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 text-xs font-semibold text-amber-800 flex items-start gap-2.5">
-              <AlertTriangleIcon className="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
-              <div className="flex flex-col gap-0.5">
-                <span className="font-bold">Some MVM content is missing!</span>
-                <span className="font-normal text-amber-700">
-                  Complete the missing MVM fields in Doctor or Department settings before printing the poster.
+          {/* Missing MVM / New Doctor Alert Banner */}
+          {hasNewDoctors && !dismissedNewDoctorBanner ? (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fadeIn">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangleIcon className="h-5 w-5 shrink-0 text-amber-600" />
+                <span className="font-bold text-sm text-amber-950">
+                  New doctor name detected ({uniqueNewDoctorNames.length})
                 </span>
               </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddMasterDoctor(newDoctorItems[0])}
+                  className="bg-[#d97706] hover:bg-[#b45309] text-white font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Now</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDismissedNewDoctorBanner(true)}
+                  className="p-1.5 rounded-lg hover:bg-amber-200/60 text-amber-700 hover:text-amber-900 transition-colors cursor-pointer"
+                  title="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-          )}
+          ) : hasMissingMVM ? (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs animate-fadeIn">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangleIcon className="h-5 w-5 shrink-0 text-amber-600" />
+                <span className="font-bold text-sm text-amber-950">
+                  Some MVM content is missing!
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  type="button"
+                  onClick={handleOpenFixMVM}
+                  className="bg-[#d97706] hover:bg-[#b45309] text-white font-bold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <span>Fix It</span>
+                </button>
+              </div>
+            </div>
+          ) : null}
 
 
           {/* Date Header Title & Date Selection */}
@@ -798,7 +1087,7 @@ function RequestDetailsContent() {
                       router.push(`/designer/requests/${e.target.value}`);
                     }
                   }}
-                  className="pl-9 pr-3 py-1.5 rounded-xl border border-[#d9d9d9] bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 cursor-pointer shadow-xs h-9"
+                  className="pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 cursor-pointer shadow-xs h-9"
                 />
               </div>
             </div>
@@ -811,7 +1100,7 @@ function RequestDetailsContent() {
             <div className="lg:col-span-8 flex flex-col gap-5">
 
               {/* WhatsApp Paste Import Section */}
-              <div className="bg-white border border-[#d9d9d9] rounded-2xl p-5 shadow-xs flex flex-col gap-3.5 animate-fadeIn">
+              <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-xs flex flex-col gap-3.5 animate-fadeIn">
                 <div className="flex flex-col gap-1">
                   <h3 className="text-sm font-bold text-slate-800">Import Schedule</h3>
                 </div>
@@ -821,7 +1110,7 @@ function RequestDetailsContent() {
                   onChange={(e) => setPastedText(e.target.value)}
                   placeholder="23/08/2026 ഞായർ&#10;&#10;ജനറൽ ഒ.പി&#10;ഡോ. മേബിൾ ജോൺ&#10;MBBS&#10;രാവിലെ 8 മണി രാത്രി 8 വരെ..."
                   rows={5}
-                  className="w-full p-3.5 border border-[#d9d9d9] rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-700 bg-slate-50/10 resize-y min-h-[120px]"
+                  className="w-full p-3.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-slate-700 bg-slate-50/10 resize-y min-h-[120px]"
                 />
 
                 <div className="flex gap-3">
@@ -835,7 +1124,7 @@ function RequestDetailsContent() {
                         alert("Clipboard permission not granted. Please paste text manually using keyboard shortcuts.");
                       }
                     }}
-                    className="flex-1 bg-white hover:bg-slate-50 border border-[#d9d9d9] text-slate-700 font-bold text-xs rounded-xl py-3 transition-all flex items-center justify-center gap-1.5 cursor-pointer h-11 shadow-xs"
+                    className="flex-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl py-3 transition-all flex items-center justify-center gap-1.5 cursor-pointer h-11 shadow-xs"
                   >
                     <span>Paste Text</span>
                   </button>
@@ -873,7 +1162,7 @@ function RequestDetailsContent() {
                         setEditingItem(null);
                         setIsAddModalOpen(true);
                       }}
-                      className="bg-white border border-[#d9d9d9] text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-slate-50 transition-colors shadow-xs"
+                      className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer hover:bg-slate-50 transition-colors shadow-xs"
                     >
                       <Plus className="h-4 w-4" />
                       <span>Add Doctor</span>
@@ -882,7 +1171,7 @@ function RequestDetailsContent() {
                 </div>
 
                 {joinedItems.length === 0 ? (
-                  <div className="bg-white border border-[#d9d9d9] rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
+                  <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
                     <div className="p-3.5 rounded-full bg-teal-50/30 text-teal-600">
                       <Activity className="h-6 w-6" />
                     </div>
@@ -907,11 +1196,12 @@ function RequestDetailsContent() {
                             onDragOver={(e) => handleDragOver(e, groupIdx)}
                             onDragEnd={handleDragEnd}
                             onDrop={(e) => handleDrop(e, groupIdx)}
-                            className={`w-full bg-white border border-[#d9d9d9] rounded-2xl overflow-hidden shadow-xs transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md flex flex-col gap-1.5 ${draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
+                            className={`w-full bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs transition-all duration-200 cursor-grab active:cursor-grabbing hover:shadow-md flex flex-col gap-1.5 ${draggedIdx === groupIdx ? "opacity-40 border-dashed border-teal-300" : ""
                               }`}
                           >
                             {group.items.map((item, docIdx) => {
                               const blockMvmKey = `mvm-${item.id}`;
+                              const isNewDoctor = !item.doctorId || !doctors.some((d) => d.id === item.doctorId);
                               const isMalayalam = /[\u0D00-\u0D7F]/.test(item.doctorNameMalayalamUnicode || "");
                               const isMvmMissing = isMalayalam && !item.doctorNameMalayalamMVM;
                               const isDeptMvmMissing = !item.departmentNameMalayalamMVM;
@@ -944,13 +1234,26 @@ function RequestDetailsContent() {
                                           {item.doctorNameMalayalamUnicode || item.doctorNameEnglish}
                                         </h4>
 
-                                        {/* Doctor MVM Warning */}
-                                        {isMvmMissing && (
+                                        {/* Doctor MVM Warning / New Doctor Badge */}
+                                        {isNewDoctor ? (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleOpenAddMasterDoctor(item);
+                                            }}
+                                            className="px-2 py-0.5 text-[9px] font-bold rounded-full bg-amber-300 hover:bg-amber-400 text-amber-950 flex items-center gap-1 shrink-0 transition-colors cursor-pointer shadow-2xs"
+                                            title="Click to add doctor to master database"
+                                          >
+                                            <span className="h-1.5 w-1.5 rounded-full bg-amber-900 animate-pulse"></span>
+                                            <span>New Doctor (Add Now)</span>
+                                          </button>
+                                        ) : isMvmMissing ? (
                                           <span className="px-1.5 py-0.5 text-[8.5px] font-bold rounded-full bg-amber-400 text-amber-950 flex items-center gap-1 shrink-0">
                                             <span className="h-1.5 w-1.5 rounded-full bg-amber-900 animate-pulse"></span>
                                             Dr. MVM missing
                                           </span>
-                                        )}
+                                        ) : null}
                                       </div>
 
                                       {/* Doctor Qualification */}
@@ -1026,7 +1329,7 @@ function RequestDetailsContent() {
                         return (
                           <div
                             key={group.departmentId + "_fixed"}
-                            className="w-full bg-white border border-[#d9d9d9] rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-default"
+                            className="w-full bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-xs flex flex-col gap-1.5 cursor-default"
                           >
                             {group.items.map((item, docIdx) => {
                               const blockMvmKey = `mvm-${item.id}`;
@@ -1099,10 +1402,8 @@ function RequestDetailsContent() {
 
 
               {/* Card 1.5: Poster Generation Settings */}
-              <div className="bg-white border border-[#d9d9d9] p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Poster Layout Settings
-                </span>
+              <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
+
 
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex flex-col gap-0.5">
@@ -1127,13 +1428,10 @@ function RequestDetailsContent() {
               </div>
 
               {/* Card 2: Poster Generation & Preview Card */}
-              <div className="bg-white border border-[#d9d9d9] p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Poster Automation
-                </span>
+              <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
 
                 {generating ? (
-                  <div className="border border-[#d9d9d9] rounded-xl p-8 flex flex-col items-center justify-center gap-2 bg-slate-50/50">
+                  <div className="border border-slate-100 rounded-xl p-8 flex flex-col items-center justify-center gap-2 bg-slate-50/50">
                     <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
                     <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">Generating PNG...</span>
                   </div>
@@ -1145,7 +1443,7 @@ function RequestDetailsContent() {
                         setPreviewZoom(1);
                         setShowPreviewModal(true);
                       }}
-                      className="w-full bg-white hover:bg-slate-50 border border-[#d9d9d9] text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 h-10 shadow-xs"
+                      className="w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 h-10 shadow-xs"
                     >
                       <Eye className="h-4 w-4 text-slate-400" />
                       <span>Preview Poster</span>
@@ -1171,7 +1469,7 @@ function RequestDetailsContent() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    <div className="border border-dashed border-[#d9d9d9] rounded-xl p-6 flex flex-col items-center justify-center text-center gap-3">
+                    <div className="border border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center gap-3">
                       <ImageIcon className="h-8 w-8 text-slate-350" />
                       <div className="flex flex-col gap-0.5">
                         <span className="text-xs font-bold text-slate-800 font-semibold">No poster generated yet</span>
@@ -1194,92 +1492,22 @@ function RequestDetailsContent() {
                 {/* Version history and regenerate button removed for simplicity */}
               </div>
 
-              {/* Card 3: Date Copy Card */}
-              <div className="bg-white border border-[#d9d9d9] p-5 rounded-2xl flex flex-col gap-4 shadow-xs">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  Poster Header Date
-                </span>
+              {/* Card 3: Global Copy Schedule Action */}
+              <div className="bg-white border border-slate-100 p-5 rounded-2xl flex flex-col gap-3 shadow-xs">
 
-                {/* English Date */}
-                <div className="flex justify-between items-center gap-3 text-xs">
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[9px] font-bold text-slate-450 uppercase mb-0.5">
-                      English Format
-                    </span>
-                    <span className="font-semibold text-slate-700 truncate">
-                      {getEnglishDateString(dateString)}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(getEnglishDateString(dateString), "date-eng")}
-                    className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${copiedFields["date-eng"]
-                      ? "bg-teal-50 border-teal-100 text-teal-600"
-                      : "bg-white border-[#d9d9d9] text-slate-650 hover:bg-slate-50"
-                      }`}
-                  >
-                    {copiedFields["date-eng"] ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3 w-3" />}
-                  </button>
-                </div>
-
-                {/* Malayalam Date */}
-                <div className="flex justify-between items-center gap-3 text-xs border-t border-slate-50 pt-3">
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[9px] font-bold text-slate-450 uppercase mb-0.5">
-                      Malayalam Format
-                    </span>
-                    <span className="font-semibold text-slate-700 font-mono truncate">
-                      {getMalayalamDateString(dateString)}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(getMalayalamDateString(dateString), "date-mal")}
-                    className={`px-2 py-1.5 rounded-lg border text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer h-7 shrink-0 ${copiedFields["date-mal"]
-                      ? "bg-teal-50 border-teal-100 text-teal-600"
-                      : "bg-white border-[#d9d9d9] text-slate-650 hover:bg-slate-50"
-                      }`}
-                  >
-                    {copiedFields["date-mal"] ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3 w-3" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Card 4: Global Poster Copies */}
-              <div className="bg-white border border-[#d9d9d9] p-5 rounded-2xl flex flex-col gap-3 shadow-xs">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                  Global Copy Actions
-                </span>
 
                 <button
                   type="button"
-                  onClick={() => copyAllPosterContent("unicode", "all-content-uni")}
-                  className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${copiedFields["all-content-uni"]
+                  onClick={() => copyAllPosterContent("unicode", "schedule-unicode")}
+                  className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${copiedFields["schedule-unicode"]
                     ? "bg-teal-50 border-teal-100 text-teal-700"
-                    : "bg-white border-[#d9d9d9] hover:bg-slate-50 text-slate-755"
+                    : "bg-white border-slate-200 hover:bg-slate-50 text-slate-700"
                     }`}
                 >
-                  {copiedFields["all-content-uni"] ? (
-                    <><Check className="h-4 w-4" /><span>All Unicode Copied!</span></>
+                  {copiedFields["schedule-unicode"] ? (
+                    <><Check className="h-4 w-4 text-teal-600" /><span>Schedule Copied!</span></>
                   ) : (
-                    <><Layers className="h-4 w-4 text-slate-400" /><span>Copy All Unicode Content</span></>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => copyAllPosterContent("mvm", "all-content-mvm")}
-                  className={`w-full py-2.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${copiedFields["all-content-mvm"]
-                    ? "bg-teal-50 border-teal-100 text-teal-700"
-                    : "bg-white border-[#d9d9d9] hover:bg-slate-50 text-slate-755"
-                    }`}
-                >
-                  {copiedFields["all-content-mvm"] ? (
-                    <><Check className="h-4 w-4" /><span>All MVM Copied!</span></>
-                  ) : (
-                    <><Layers className="h-4 w-4 text-slate-400" /><span>Copy All MVM Content</span></>
+                    <><Copy className="h-4 w-4 text-slate-400" /><span>Copy Schedule</span></>
                   )}
                 </button>
               </div>
@@ -1303,7 +1531,7 @@ function RequestDetailsContent() {
       {/* Save Success Alert */}
       {showSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="w-full max-w-sm bg-white rounded-2xl border border-[#d9d9d9] p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 p-6 flex flex-col items-center text-center gap-4 shadow-2xl animate-scaleUp">
             <div className="h-12 w-12 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center">
               <CheckCircle className="h-7 w-7" />
             </div>
@@ -1341,6 +1569,146 @@ function RequestDetailsContent() {
         existingItems={scheduleItems}
       />
 
+      {/* Add Master Doctor Modal */}
+      {isAddMasterDoctorModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-100 p-6 flex flex-col gap-4 shadow-2xl animate-scaleUp">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2 text-teal-700">
+                <User className="h-5 w-5" />
+                <h3 className="font-bold text-slate-900 text-base">Add Doctor</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddMasterDoctorModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-50 text-slate-400 cursor-pointer"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            </div>
+
+            {masterDocError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-xs font-semibold text-red-650 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
+                <span>{masterDocError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveMasterDoctor} className="flex flex-col gap-3.5">
+              {/* Department */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Department
+                </label>
+                <select
+                  value={masterDocDepartmentId}
+                  onChange={(e) => setMasterDocDepartmentId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 bg-white h-10 cursor-pointer"
+                  required
+                >
+                  <option value="">Select Department</option>
+                  {departments
+                    .filter((d) => d.id !== "dept_physiotherapy")
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nameEnglish} ({d.nameMalayalamUnicode})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Doctor Name */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Doctor Name (Malayalam)
+                </label>
+                <input
+                  type="text"
+                  value={masterDocName}
+                  onChange={(e) => setMasterDocName(e.target.value)}
+                  placeholder="e.g. ഡോ. മേബിൾ ജോൺ"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 bg-white h-10"
+                  required
+                />
+              </div>
+
+              {/* Doctor Name MVM */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Doctor Name in MVM Code
+                  </label>
+                  {!masterDocMVM && (
+                    <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                      Required for poster
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={masterDocMVM}
+                  onChange={(e) => setMasterDocMVM(e.target.value)}
+                  placeholder="e.g. tUm. cmlp¬ IrjvW³"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 text-xs font-semibold text-slate-900 bg-white h-10 font-mono"
+                />
+              </div>
+
+              {/* Qualification */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Qualification (English)
+                </label>
+                <input
+                  type="text"
+                  value={masterDocQualification}
+                  onChange={(e) => setMasterDocQualification(e.target.value)}
+                  placeholder="e.g. MBBS, MD"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:border-teal-600 focus:ring-1 focus:ring-teal-600 bg-white h-10"
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center justify-between gap-3 mt-3 pt-2 border-t border-slate-100">
+                <Link
+                  href="/designer/doctors"
+                  target="_blank"
+                  className="text-[11px] text-slate-400 hover:text-slate-600 font-medium transition-colors"
+                >
+                  Open Full Doctor Settings
+                </Link>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddMasterDoctorModalOpen(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={masterDocSaving}
+                    className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    {masterDocSaving ? (
+                      <>
+                        <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Save</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900/90 text-white text-xs font-semibold px-4 py-3 rounded-2xl shadow-xl backdrop-blur-md animate-scaleUp border border-slate-700/50">
@@ -1354,8 +1722,8 @@ function RequestDetailsContent() {
       {/* Validation Errors Modal */}
       {showValidationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-[#d9d9d9] p-6 flex flex-col gap-4 shadow-2xl animate-scaleUp">
-            <div className="flex justify-between items-center pb-2 border-b border-[#d9d9d9]">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-100 p-6 flex flex-col gap-4 shadow-2xl animate-scaleUp">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <div className="flex items-center gap-2 text-amber-600">
                 <AlertTriangle className="h-5 w-5" />
                 <h3 className="font-bold text-slate-900 text-base">Validation Failed</h3>
@@ -1375,7 +1743,7 @@ function RequestDetailsContent() {
 
             <div className="max-h-60 overflow-y-auto flex flex-col gap-2.5 pr-1">
               {validationErrors.map((err, idx) => (
-                <div key={idx} className="flex justify-between items-center gap-3 p-3 rounded-xl bg-slate-50 border border-[#d9d9d9] text-xs">
+                <div key={idx} className="flex justify-between items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs">
                   <div className="flex flex-col gap-0.5 min-w-0">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       {err.type === "doctor" ? "Doctor" : "Department"}
@@ -1383,12 +1751,30 @@ function RequestDetailsContent() {
                     <span className="font-bold text-slate-800 truncate">{err.name}</span>
                     <span className="text-[10px] text-slate-500 font-medium">{err.field} is missing</span>
                   </div>
-                  <Link
-                    href={err.path}
-                    className="shrink-0 bg-teal-50 hover:bg-teal-100 text-teal-700 px-3 py-1.5 rounded-lg font-bold text-[10px] cursor-pointer transition-colors"
-                  >
-                    Edit Master
-                  </Link>
+                  {err.field.includes("New Doctor") ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowValidationModal(false);
+                        const match = scheduleItems.find((si) => si.id === err.id) || {
+                          id: err.id,
+                          doctorNameMalayalamUnicode: err.name,
+                          doctorNameEnglish: err.name,
+                        };
+                        handleOpenAddMasterDoctor(match);
+                      }}
+                      className="shrink-0 bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg font-bold text-[10px] cursor-pointer transition-colors shadow-2xs"
+                    >
+                      Add Now
+                    </button>
+                  ) : (
+                    <Link
+                      href={err.path}
+                      className="shrink-0 bg-teal-50 hover:bg-teal-100 text-teal-700 px-3 py-1.5 rounded-lg font-bold text-[10px] cursor-pointer transition-colors"
+                    >
+                      Edit Master
+                    </Link>
+                  )}
                 </div>
               ))}
             </div>
@@ -1443,7 +1829,7 @@ function RequestDetailsContent() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-            <div className="w-full max-w-4xl bg-white rounded-2xl md:rounded-3xl border border-[#d9d9d9] flex flex-col md:flex-row shadow-2xl relative overflow-hidden my-2 sm:my-8 max-h-[95vh] md:max-h-[90vh] animate-scaleUp animate-duration-200">
+            <div className="w-full max-w-4xl bg-white rounded-2xl md:rounded-3xl border border-slate-100 flex flex-col md:flex-row shadow-2xl relative overflow-hidden my-2 sm:my-8 max-h-[95vh] md:max-h-[90vh] animate-scaleUp animate-duration-200">
 
               {/* Left: Dynamic HTML display (scrollable if zoomed) */}
               <div
@@ -1721,9 +2107,9 @@ function RequestDetailsContent() {
               </div>
 
               {/* Right: Controls & Info */}
-              <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-[#d9d9d9] p-6 flex flex-col justify-between bg-slate-50/50">
+              <div className="w-full md:w-80 border-t md:border-t-0 md:border-l border-slate-100 p-6 flex flex-col justify-between bg-slate-50/50">
                 <div className="flex flex-col gap-5">
-                  <div className="flex justify-between items-center pb-3 border-b border-[#d9d9d9]">
+                  <div className="flex justify-between items-center pb-3 border-b border-slate-100">
                     <div className="flex flex-col">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Preview</span>
                       <h3 className="font-bold text-slate-900 text-base">Poster Live Preview</h3>
@@ -1738,7 +2124,7 @@ function RequestDetailsContent() {
                   </div>
 
                   {/* Adjust Date Position Option Panel */}
-                  <div className="bg-slate-100 border border-[#d9d9d9]/60 rounded-xl p-3 flex flex-col gap-2.5">
+                  <div className="bg-slate-100 border border-slate-200/60 rounded-xl p-3 flex flex-col gap-2.5">
                     <div className="flex justify-between items-center">
                       <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
                         Adjust Date Position
@@ -1747,7 +2133,7 @@ function RequestDetailsContent() {
                         type="button"
                         disabled={isSavingPosition}
                         onClick={handleSavePosition}
-                        className="text-[9px] text-teal-600 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-[#d9d9d9] px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
+                        className="text-[9px] text-teal-600 hover:text-teal-700 font-bold cursor-pointer flex items-center gap-0.5 bg-white border border-slate-200 px-1.5 py-0.5 rounded shadow-2xs transition-colors h-6"
                       >
                         {positionSavedFeedback ? (
                           <>
@@ -1806,7 +2192,7 @@ function RequestDetailsContent() {
                       type="button"
                       disabled={previewZoom <= 0.75}
                       onClick={() => setPreviewZoom((z) => z - 0.25)}
-                      className="w-8 h-8 rounded-lg border border-[#d9d9d9] bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
+                      className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
                     >
                       -
                     </button>
@@ -1817,7 +2203,7 @@ function RequestDetailsContent() {
                       type="button"
                       disabled={previewZoom >= 2.0}
                       onClick={() => setPreviewZoom((z) => z + 0.25)}
-                      className="w-8 h-8 rounded-lg border border-[#d9d9d9] bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
+                      className="w-8 h-8 rounded-lg border border-slate-200 bg-white flex items-center justify-center font-bold hover:bg-slate-50 text-slate-600 disabled:opacity-40 cursor-pointer"
                     >
                       +
                     </button>

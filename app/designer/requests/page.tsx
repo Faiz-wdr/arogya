@@ -113,12 +113,12 @@ export default function PosterRequestsPage() {
 
       {/* Requests Logs */}
       {loading ? (
-        <div className="bg-white border border-[#D9D9D9] rounded-2xl py-16 flex flex-col items-center justify-center gap-2">
+        <div className="bg-white border border-slate-100 rounded-2xl py-16 flex flex-col items-center justify-center gap-2">
           <div className="h-6 w-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs text-slate-400 font-semibold mt-1">Loading poster requests...</span>
         </div>
       ) : filteredRequests.length === 0 ? (
-        <div className="bg-white border border-[#D9D9D9] rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
+        <div className="bg-white border border-slate-100 rounded-2xl py-12 px-6 flex flex-col items-center justify-center text-center gap-3">
           <div className="p-3.5 rounded-full bg-teal-50/40 text-teal-600">
             <FileSpreadsheet className="h-6 w-6" />
           </div>
@@ -134,7 +134,7 @@ export default function PosterRequestsPage() {
           {filteredRequests.map((request) => (
             <div
               key={request.date}
-              className="bg-white border border-[#D9D9D9] rounded-2xl flex items-center justify-between overflow-hidden shadow-xs hover:shadow-sm transition-all"
+              className="bg-white border border-slate-100 rounded-2xl flex items-center justify-between overflow-hidden shadow-xs hover:shadow-sm transition-all"
             >
               <Link
                 href={`/designer/requests/${request.date}`}
@@ -151,14 +151,12 @@ export default function PosterRequestsPage() {
                         year: "numeric",
                         month: "short",
                         day: "numeric",
+                        timeZone: "UTC",
                       })}
                     </span>
                     
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-[10px] text-slate-400 font-medium">
-                        By {request.createdByName || "Staff"}
-                      </span>
-                      <span className="text-[10px] text-slate-450 font-semibold bg-slate-50 border border-[#D9D9D9] px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] text-slate-500 font-semibold bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">
                         {request.doctorCount || 0} Doctors
                       </span>
                       {/* Status Badge */}
@@ -199,7 +197,7 @@ export default function PosterRequestsPage() {
                     }
                   }
                 }}
-                className="p-4 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border-l border-[#D9D9D9] shrink-0 self-stretch flex items-center justify-center cursor-pointer border-none bg-transparent w-14"
+                className="p-4 text-red-500 hover:text-red-700 hover:bg-red-50 transition-colors border-l border-slate-100 shrink-0 self-stretch flex items-center justify-center cursor-pointer bg-transparent w-14"
                 title="Delete Request"
               >
                 <Trash2 className="h-5 w-5" />

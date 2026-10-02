@@ -360,6 +360,20 @@ export async function savePosterRequest(
   await batch.commit();
 }
 
+// Helper to calculate age in days from YYYY-MM-DD
+function getDaysOld(dateStr: string): number {
+  if (!dateStr) return 0;
+  const parts = dateStr.split("-").map(Number);
+  if (parts.length !== 3 || isNaN(parts[0])) return 0;
+  const reqDate = new Date(parts[0], parts[1] - 1, parts[2]);
+  reqDate.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Math.floor((today.getTime() - reqDate.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 // 13. Fetch poster requests history (staff view, or all history)
 export async function fetchPosterRequestsHistory(): Promise<Omit<PosterRequest, "scheduleItems">[]> {
   const q = query(
@@ -367,17 +381,76 @@ export async function fetchPosterRequestsHistory(): Promise<Omit<PosterRequest, 
     orderBy("date", "desc")
   );
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => doc.data()) as Omit<PosterRequest, "scheduleItems">[];
+  const allRequests = querySnapshot.docs.map((doc) => doc.data()) as Omit<PosterRequest, "scheduleItems">[];
+
+  const toDeleteDates = new Set<string>();
+  const activeRequests: Omit<PosterRequest, "scheduleItems">[] = [];
+
+  allRequests.forEach((req) => {
+    const daysOld = getDaysOld(req.date);
+    if (daysOld > 7) {
+      toDeleteDates.add(req.date);
+    } else {
+      activeRequests.push(req);
+    }
+  });
+
+  if (activeRequests.length > 7) {
+    const excess = activeRequests.slice(7);
+    excess.forEach((req) => toDeleteDates.add(req.date));
+  }
+
+  if (toDeleteDates.size > 0) {
+    Array.from(toDeleteDates).forEach((dateStr) => {
+      deletePosterRequest(dateStr).catch((err) =>
+        console.error(`Auto-delete request for ${dateStr} failed:`, err)
+      );
+    });
+  }
+
+  return activeRequests.slice(0, 7);
 }
 
-// 14. Fetch all poster requests (Designer Portal) joined with user names
+// 14. Fetch all poster requests (Designer Portal) joined with user names and auto-pruned
 export async function fetchAllPosterRequests(): Promise<Omit<PosterRequest, "scheduleItems">[]> {
   const q = query(
     collection(db, "posterRequests"),
     orderBy("date", "desc")
   );
   const querySnapshot = await getDocs(q);
-  const requests = querySnapshot.docs.map((doc) => doc.data()) as Omit<PosterRequest, "scheduleItems">[];
+  const rawRequests = querySnapshot.docs.map((doc) => doc.data()) as Omit<PosterRequest, "scheduleItems">[];
+
+  // 1. Identify requests to delete:
+  // - Any request older than 7 days (> 7 days from today)
+  // - Keep at most 7 requests at a time
+  const toDeleteDates = new Set<string>();
+  const activeRequests: Omit<PosterRequest, "scheduleItems">[] = [];
+
+  rawRequests.forEach((req) => {
+    const daysOld = getDaysOld(req.date);
+    if (daysOld > 7) {
+      toDeleteDates.add(req.date);
+    } else {
+      activeRequests.push(req);
+    }
+  });
+
+  // Cap at 7 requests maximum at a time
+  if (activeRequests.length > 7) {
+    const excess = activeRequests.slice(7);
+    excess.forEach((req) => toDeleteDates.add(req.date));
+  }
+
+  // Auto-delete expired/excess requests from Firestore
+  if (toDeleteDates.size > 0) {
+    Array.from(toDeleteDates).forEach((dateStr) => {
+      deletePosterRequest(dateStr).catch((err) =>
+        console.error(`Auto-delete request for ${dateStr} failed:`, err)
+      );
+    });
+  }
+
+  const keptRequests = activeRequests.slice(0, 7);
 
   // Fetch user profiles to join creator names
   const usersMap: { [uid: string]: string } = {};
@@ -386,7 +459,7 @@ export async function fetchAllPosterRequests(): Promise<Omit<PosterRequest, "sch
     usersMap[udoc.id] = udoc.data().name || "Unknown Staff";
   });
 
-  return requests.map((req) => {
+  return keptRequests.map((req) => {
     let name = usersMap[req.createdBy] || "Unknown Staff";
     if (name === "Temp Seed Admin") {
       name = "System Admin";
