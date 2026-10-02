@@ -30,7 +30,7 @@ const formatPosterDate = (date: Date) => {
 // Get Malayalam MVM name of the day of the week
 const getMalayalamDay = (date: Date) => {
   const days = [
-    "ªmbÀ",        // Sunday
+    "RmbÀ",        // Sunday
     "Xn¦Ä",        // Monday
     "sNmÆ",        // Tuesday
     "_p[³",        // Wednesday

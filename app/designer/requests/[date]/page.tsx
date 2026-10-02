@@ -1955,7 +1955,7 @@ function RequestDetailsContent() {
                                     style={{ fontFamily: "'MVMAthira-Bold', sans-serif" }}
                                   >
                                     <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>FÃm Znhkhpw</span>
-                                    <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>(ªmbÀ Ah[n)</span>
+                                    <span className="text-[32px] leading-[1.15]" style={{ transform: "translateY(-8px)", display: "inline-block" }}>(RmbÀ Ah[n)</span>
                                   </div>
                                   <span
                                     className="text-[27px] text-white leading-none"

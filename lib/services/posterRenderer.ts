@@ -109,7 +109,7 @@ export function generatePosterHtml(
             <div class="fixed-service-card-right">
               <div class="fs-badge">
                 <span class="fs-line-1">FÃm Znhkhpw</span>
-                <span class="fs-line-1">(ªmbÀ Ah[n)</span>
+                <span class="fs-line-1">(RmbÀ Ah[n)</span>
               </div>
               <span class="fs-line-2">9:00 AM - 5:00 PM</span>
             </div>

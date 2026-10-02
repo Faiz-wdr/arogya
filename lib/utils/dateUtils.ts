@@ -88,7 +88,7 @@ export function getMalayalamMVMDateString(dateStr: string): string {
   ];
 
   const mvmWeekdays = [
-    "ªmbÀ",        // Sunday
+    "RmbÀ",        // Sunday
     "Xn¦Ä",        // Monday
     "sNmÆ",        // Tuesday
     "_p[³",        // Wednesday
