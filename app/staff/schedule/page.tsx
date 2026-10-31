@@ -175,7 +175,7 @@ function ScheduleContent() {
               doctorId: null,
               departmentId: "dept_physiotherapy",
               startTime: "09:00",
-              endTime: "17:00",
+              endTime: "18:00",
               displayOrder: items.length,
               itemType: "fixed_service",
             };
@@ -184,6 +184,14 @@ function ScheduleContent() {
             // Remove fixed service on Sunday if it accidentally exists
             items = items.filter((item) => item.itemType !== "fixed_service");
           }
+
+          // Migrate any existing physiotherapy default time of 17:00 to 18:00
+          items = items.map((item) => {
+            if ((item.id === "fixed_physio" || item.departmentId === "dept_physiotherapy") && item.endTime === "17:00") {
+              return { ...item, endTime: "18:00" };
+            }
+            return item;
+          });
 
           // Sort items by displayOrder
           items.sort((a, b) => a.displayOrder - b.displayOrder);
@@ -199,7 +207,7 @@ function ScheduleContent() {
               doctorId: null,
               departmentId: "dept_physiotherapy",
               startTime: "09:00",
-              endTime: "17:00",
+              endTime: "18:00",
               displayOrder: 0,
               itemType: "fixed_service",
             };
@@ -503,7 +511,7 @@ function ScheduleContent() {
             doctorId: null,
             departmentId: "dept_physiotherapy",
             startTime: "09:00",
-            endTime: "17:00",
+            endTime: "18:00",
             displayOrder: parsedItemsToLoad.length,
             itemType: "fixed_service",
           });
@@ -548,7 +556,7 @@ function ScheduleContent() {
           doctorId: null,
           departmentId: "dept_physiotherapy",
           startTime: "09:00",
-          endTime: "17:00",
+          endTime: "18:00",
           displayOrder: merged.length,
           itemType: "fixed_service",
         });
@@ -1474,7 +1482,7 @@ function ScheduleContent() {
                       doctorId: null,
                       departmentId: "dept_physiotherapy",
                       startTime: "09:00",
-                      endTime: "17:00",
+                      endTime: "18:00",
                       displayOrder: parsedItemsToLoad.length,
                       itemType: "fixed_service",
                     });

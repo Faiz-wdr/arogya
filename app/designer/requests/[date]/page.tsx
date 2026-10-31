@@ -22,6 +22,7 @@ import {
 import { getEnglishDateString, getMalayalamDateString, getMalayalamMVMDateString } from "@/lib/utils/dateUtils";
 import { parseSchedule } from "@/lib/utils/scheduleParser";
 import { unicodeToMVM } from "@/lib/utils/malayalamMVMConverter";
+import { generateServicePosterBlob } from "@/lib/services/servicePoster";
 import AddDoctorModal from "@/components/AddDoctorModal";
 import {
   Calendar,
@@ -125,6 +126,12 @@ function RequestDetailsContent() {
   // Auto-Regenerate on Download states
   const [isPosterOutdated, setIsPosterOutdated] = useState(false);
   const [isDownloadingPNG, setIsDownloadingPNG] = useState(false);
+  const [lastGeneratedBlob, setLastGeneratedBlob] = useState<Blob | null>(null);
+
+  const [yStr, mStr, dStr] = (dateString || "").split("-");
+  const isSundayDate = Boolean(
+    yStr && mStr && dStr && new Date(Number(yStr), Number(mStr) - 1, Number(dStr)).getDay() === 0
+  );
 
   // Workflow Confirmation Modals
   const [showReopenConfirm, setShowReopenConfirm] = useState(false);
@@ -171,7 +178,13 @@ function RequestDetailsContent() {
 
       const request = await fetchPosterRequestWithItems(dateString);
       if (request) {
-        setScheduleItems(request.scheduleItems || []);
+        const loadedItems = (request.scheduleItems || []).map((item) => {
+          if ((item.id === "fixed_physio" || item.departmentId === "dept_physiotherapy") && item.endTime === "17:00") {
+            return { ...item, endTime: "18:00" };
+          }
+          return item;
+        });
+        setScheduleItems(loadedItems);
         setStatus(request.status);
         setCreatedBy(request.createdBy);
         setCreatedByName(request.createdByName || "Hospital Staff");
@@ -601,7 +614,7 @@ function RequestDetailsContent() {
           doctorId: null,
           departmentId: "dept_physiotherapy",
           startTime: "09:00",
-          endTime: "17:00",
+          endTime: "18:00",
           displayOrder: parsedItemsToLoad.length,
           itemType: "fixed_service",
         });
@@ -912,6 +925,8 @@ function RequestDetailsContent() {
       }
 
       const imageBlob = await response.blob();
+      setLastGeneratedBlob(imageBlob);
+      setIsPosterOutdated(false);
 
       // Auto-update request status from 'submitted' to 'processing'
       if (status === "submitted") {
@@ -944,12 +959,24 @@ function RequestDetailsContent() {
     }
   };
 
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+  };
+
   const handleDownloadPNG = async () => {
-    const filename = `arogya-doctors-${dateString}.png`;
     setIsDownloadingPNG(true);
     try {
-      await handleSavePosition();
+      const [y, m, d] = (dateString || "").split("-").map(Number);
+      const isSunday = new Date(y, m - 1, d).getDay() === 0;
 
+      // 1. Fire database position and schedule saves in parallel with poster generation
       const payloadItems = scheduleItems.map((item, index) => ({
         doctorId: item.doctorId,
         departmentId: item.departmentId,
@@ -958,18 +985,55 @@ function RequestDetailsContent() {
         displayOrder: index,
         itemType: item.itemType,
       }));
-      await savePosterRequest(dateString, createdBy || user?.uid || "", status, payloadItems, showPhysiotherapy);
 
-      const result = await handleGeneratePoster();
-      if (result && result.imageBlob) {
-        const blobUrl = URL.createObjectURL(result.imageBlob);
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
+      const syncPositionPromise = savePosterSettings({ datePositionX, datePositionY }).catch((e) =>
+        console.error("Async position save error:", e)
+      );
+      const syncRequestPromise = savePosterRequest(
+        dateString,
+        createdBy || user?.uid || "",
+        status,
+        payloadItems,
+        showPhysiotherapy
+      ).catch((e) => console.error("Async request save error:", e));
+
+      // 2. Schedule Poster: Use cached blob if valid; otherwise generate
+      const schedulePosterPromise = (async () => {
+        if (lastGeneratedBlob && !isPosterOutdated) {
+          return lastGeneratedBlob;
+        }
+        const result = await handleGeneratePoster();
+        return result?.imageBlob || null;
+      })();
+
+      // 3. Service Poster: Generate on client canvas (weekday only, skip on Sunday)
+      const servicePosterPromise = !isSunday
+        ? generateServicePosterBlob(dateString).catch((e) => {
+            console.error("Service poster generation error:", e);
+            return null;
+          })
+        : Promise.resolve(null);
+
+      // Execute poster generation and database saves concurrently
+      const [scheduleBlob, serviceBlob] = await Promise.all([
+        schedulePosterPromise,
+        servicePosterPromise,
+        syncPositionPromise,
+        syncRequestPromise,
+      ]);
+
+      // Trigger Schedule poster download
+      if (scheduleBlob) {
+        const scheduleFilename = `arogya-doctors-${dateString}.png`;
+        triggerDownload(scheduleBlob, scheduleFilename);
+      }
+
+      // Trigger Services poster download (if weekday)
+      if (serviceBlob) {
+        const serviceFilename = `arogya-services-${dateString}.png`;
+        setTimeout(() => {
+          triggerDownload(serviceBlob, serviceFilename);
+        }, 300);
       }
     } catch (err) {
       console.error("Poster download failed:", err);
@@ -1465,7 +1529,7 @@ function RequestDetailsContent() {
                       ) : (
                         <>
                           <Download className="h-4 w-4" />
-                          <span>Download Poster</span>
+                          <span>{isSundayDate ? "Download Poster" : "Download Both Posters"}</span>
                         </>
                       )}
                     </button>
@@ -1970,7 +2034,7 @@ function RequestDetailsContent() {
                                     className="text-[27px] text-white leading-none"
                                     style={{ fontFamily: "'Gobold-Uplow', sans-serif", fontWeight: "normal" }}
                                   >
-                                    9:00 AM - 5:00 PM
+                                    9:00 AM - 6:00 PM
                                   </span>
                                 </div>
                               </div>
@@ -2230,12 +2294,20 @@ function RequestDetailsContent() {
                     {isDownloadingPNG || generating ? (
                       <>
                         <div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>{isDownloadingPNG ? "Regenerating & Downloading..." : "Regenerating..."}</span>
+                        <span>{isDownloadingPNG ? "Downloading..." : "Regenerating..."}</span>
                       </>
                     ) : (
                       <>
                         <Download className="h-4 w-4" />
-                        <span>{isPosterOutdated ? "Download PNG (Regenerating)" : "Download PNG"}</span>
+                        <span>
+                          {isSundayDate
+                            ? isPosterOutdated
+                              ? "Download Poster (Regenerating)"
+                              : "Download Poster"
+                            : isPosterOutdated
+                            ? "Download Both Posters (Regenerating)"
+                            : "Download Both Posters"}
+                        </span>
                       </>
                     )}
                   </button>

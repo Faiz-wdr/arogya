@@ -101,6 +101,10 @@ export function generatePosterHtml(
 
       if (isPhysio) {
         // Special full-width layout for fixed Physiotherapy
+        const endTime = deptItems?.[0]?.endTime === "17:00" ? "18:00" : (deptItems?.[0]?.endTime || "18:00");
+        const startTime = deptItems?.[0]?.startTime || "09:00";
+        const physioTime = `${formatTime12(startTime)} - ${formatTime12(endTime)}`;
+
         return `
           <div class="fixed-service-row">
             <div class="fixed-service-card-left">
@@ -111,7 +115,7 @@ export function generatePosterHtml(
                 <span class="fs-line-1">FÃm Znhkhpw</span>
                 <span class="fs-line-1">(RmbÀ Ah[n)</span>
               </div>
-              <span class="fs-line-2">9:00 AM - 5:00 PM</span>
+              <span class="fs-line-2">${physioTime}</span>
             </div>
           </div>
         `;
